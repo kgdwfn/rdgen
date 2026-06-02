@@ -22,6 +22,12 @@ runs:
         import pyzipper
         import json
         import os
+        import sys
+        import io
+
+        # 强制 stdout/stderr 使用 UTF-8 编码，解决 Windows 环境中文报错问题
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
         with pyzipper.AESZipFile('${{ inputs.zip_path }}') as zf:
             zf.setpassword('${{ inputs.zip_password }}'.encode())
