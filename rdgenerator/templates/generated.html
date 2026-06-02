@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title id="pageTitle">Build Generated Successfully</title>
+    <title id="pageTitle">客户端生成成功</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
@@ -124,7 +124,7 @@
     </svg>
 
     <div>
-        <h2 class="success-text">Build Generated Successfully</h2>
+        <h2 class="success-text">客户端生成成功</h2>
         <div class="download-section">
             {% if platform == 'windows' %}
                 <a href='/download?filename={{filename}}.exe&uuid={{uuid}}' class="download-link">Download {{filename}}.exe</a>
@@ -152,7 +152,7 @@
                 <a href='/download?filename={{filename}}-x86_64.dmg&uuid={{uuid}}' class="download-link">Download {{filename}}-x86_64.dmg</a>
                 <a href='/download?filename={{filename}}-aarch64.dmg&uuid={{uuid}}' class="download-link">Download {{filename}}-aarch64.dmg</a>
             {% else %}
-                <p>Error: No file generated</p>
+                <p>Error: 错误：未生成文件</p>
             {% endif %}
         </div>
     </div>
@@ -177,22 +177,22 @@
             if (platform === 'macos') {
                 document.getElementById('pageTitle').textContent = 'MacOS Build Generated';
                 platformLogos.macos.style.display = 'block';
-                platformNote.textContent = 'Note: For macOS, you may need to adjust security settings to run the application.';
+                platformNote.textContent = '注意：在 macOS 系统中你可能需要修改安全设置才能运行该应用程序。';
                 platformNote.style.display = 'block';
             } else if (platform === 'windows' || platform === 'windows-x86') {
                 document.getElementById('pageTitle').textContent = 'Windows Build Generated';
                 platformLogos.windows.style.display = 'block';
-                platformNote.textContent = 'Note: You might need to disable SmartScreen or adjust Windows security settings.';
+                platformNote.textContent = '注意：Windows 可能会弹出 SmartScreen 警告，请点击"仍要运行"。';
                 platformNote.style.display = 'block';
             } else if (platform === 'linux') {
                 document.getElementById('pageTitle').textContent = 'Linux Build Generated';
                 platformLogos.linux.style.display = 'block';
-                platformNote.textContent = 'Note: Ensure you have the necessary dependencies installed.';
+                platformNote.textContent = '注意：请确保已安装所需的依赖组件。';
                 platformNote.style.display = 'block';
             } else if (platform === 'android') {
                 document.getElementById('pageTitle').textContent = 'Android Build Generated';
                 platformLogos.android.style.display = 'block';
-                platformNote.textContent = 'Note: You may need to enable "Unknown Sources" in device settings.';
+                platformNote.textContent = '注意：你需要在设备设置中开启「未知来源应用安装」权限。';
                 platformNote.style.display = 'block';
             }
         }
