@@ -388,6 +388,9 @@ jobs:
 
       - name: Build self-extracted executable
         shell: bash
+        env:
+          PYTHONIOENCODING: utf-8
+          PYTHONUTF8: 1
         run: |
           mv "./Release/rustdesk.exe" "./Release/${{ env.appname }}.exe" || echo "rustdesk.exe"
           sed -i '/dpiAware/d' res/manifest.xml
