@@ -537,6 +537,11 @@ jobs:
         run: |
           echo -n "${{ env.custom }}" | cat > ./rustdesk/custom_.txt
 
+      # ============================================================
+      # 修改说明：添加 Python UTF-8 编码支持，解决中文打印问题
+      # 原因：generate.py 第 103 行 print 中文时会报 UnicodeEncodeError
+      # 修改日期：2026-01-XX
+      # ============================================================
       - name: Build self-extracted executable
         shell: bash
         if: env.UPLOAD_ARTIFACT == 'true'
@@ -552,9 +557,42 @@ jobs:
           popd
           mkdir -p ./SignOutput
           mv ./target/release/rustdesk-portable-packer.exe "./SignOutput/rustdesk.exe"
+      # ============================================================
+      # 修改结束
+      # ============================================================
 
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v2
+
+      # ============================================================
+      # 修改说明：添加 WiX 编码修复步骤，解决 MSI 构建中文报错问题
+      # 原因：WiX 默认使用代码页 1252，不支持中文
+      # 修改日期：2026-01-XX
+      # ============================================================
+      - name: Fix WiX encoding for Chinese support
+        shell: pwsh
+        if: env.UPLOAD_ARTIFACT == 'true'
+        run: |
+          Write-Host "========================================"
+          Write-Host "修复 WiX 编码以支持中文"
+          Write-Host "========================================"
+          # 将所有 .wxs 和 .wxl 文件的代码页从 1252 改为 65001 (UTF-8)
+          Get-ChildItem -Path "./res/msi" -Recurse -Include "*.wxs", "*.wxl" | ForEach-Object {
+            $content = Get-Content $_.FullName -Raw -Encoding UTF8
+            if ($content -match 'Codepage="1252"') {
+              $content = $content -replace 'Codepage="1252"', 'Codepage="65001"'
+              Set-Content $_.FullName -Value $content -Encoding UTF8 -NoNewline
+              Write-Host "已修复: $($_.FullName)"
+            } else {
+              Write-Host "无需修复: $($_.FullName)"
+            }
+          }
+          Write-Host "========================================"
+          Write-Host "WiX 编码已修复为 UTF-8 (65001)"
+          Write-Host "========================================"
+      # ============================================================
+      # 修改结束
+      # ============================================================
 
       - name: Build msi
         continue-on-error: true
@@ -569,6 +607,7 @@ jobs:
           cp ./Package/bin/x64/Release/en-us/Package.msi ../../SignOutput/rustdesk-latest.msi
           mv ./Package/bin/x64/Release/en-us/Package.msi ../../SignOutput/rustdesk.msi
           sha256sum ../../SignOutput/rustdesk.msi
+          popd
 
       - name: zip exe and msi
         continue-on-error: true
