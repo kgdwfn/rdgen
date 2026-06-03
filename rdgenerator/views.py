@@ -90,13 +90,37 @@ def generator_view(request):
             enableCamera = form.cleaned_data['enableCamera']
             enableTerminal = form.cleaned_data['enableTerminal']
 
-            if all(char.isascii() for char in filename):
-                filename = re.sub(r'[^\w\s-]', '_', filename).strip()
-                filename = filename.replace(" ","_")
-            else:
-                filename = "rustdesk"
-            if not all(char.isascii() for char in appname):
-                appname = "rustdesk"
+            # ============================================================
+            # 修改说明：注释掉了文件名和应用名的 ASCII 字符检查
+            # 原因：支持中文应用名和文件名
+            # 如需恢复，取消下面的注释即可
+            # 修改日期：2026-01-XX
+            # ============================================================
+
+            # ---------- 原始文件名检查代码（已注释）----------
+            # if all(char.isascii() for char in filename):
+            #     filename = re.sub(r'[^\w\s-]', '_', filename).strip()
+            #     filename = filename.replace(" ","_")
+            # else:
+            #     filename = "rustdesk"
+            # ---------- 修改后：直接使用用户输入的文件名 ----------
+            # 注意：如果文件名包含特殊字符可能会造成问题，建议用户使用英文/数字/下划线
+            if not filename:
+                filename = "rustdesk"  # 如果用户没填，使用默认值
+            # 仅替换空格为下划线，其他字符保留（支持中文）
+            filename = filename.replace(" ", "_")
+
+            # ---------- 原始应用名检查代码（已注释）----------
+            # if not all(char.isascii() for char in appname):
+            #     appname = "rustdesk"
+            # ---------- 修改后：保留用户输入的应用名（支持中文）----------
+            # 应用名现在可以是中文、英文或其他 Unicode 字符
+            # 注意：如果 appname 为空，已在上面设置为 "rustdesk"
+
+            # ============================================================
+            # 检查代码结束
+            # ============================================================
+            
             myuuid = str(uuid.uuid4())
             protocol = _settings.PROTOCOL
             host = request.get_host()
