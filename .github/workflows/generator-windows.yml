@@ -507,19 +507,6 @@ jobs:
         run: |
           echo -n "${{ env.custom }}" | cat > ./rustdesk/custom_.txt
 
-      - name: Convert Chinese appname to Pinyin
-        shell: bash
-        if: env.UPLOAD_ARTIFACT == 'true'
-        run: |
-          if [[ "${{ env.appname }}" =~ [^[:ascii:]] ]]; then
-            pip install pypinyin -q
-            PINYIN_NAME=$(python -c "from pypinyin import lazy_pinyin; name = '${{ env.appname }}'; print('_'.join(lazy_pinyin(name)).replace(' ', '_'))")
-            echo "BUILD_APPNAME=$PINYIN_NAME" >> $GITHUB_ENV
-          else
-            echo "BUILD_APPNAME=${{ env.appname }}" >> $GITHUB_ENV
-          fi
-          echo "ORIGINAL_APPNAME=${{ env.appname }}" >> $GITHUB_ENV
-
       - name: Build self-extracted executable
         shell: bash
         if: env.UPLOAD_ARTIFACT == 'true'
@@ -527,12 +514,11 @@ jobs:
           PYTHONIOENCODING: utf-8
           PYTHONUTF8: 1
         run: |
-          BUILD_NAME="${{ env.BUILD_APPNAME }}"
-          mv "./rustdesk/rustdesk.exe" "./rustdesk/${BUILD_NAME}.exe" || echo "rustdesk.exe"
+          mv "./rustdesk/rustdesk.exe" "./rustdesk/${{ env.appname }}.exe" || echo "rustdesk.exe"
           sed -i '/dpiAware/d' res/manifest.xml
           pushd ./libs/portable
           pip3 install -r requirements.txt
-          python3 ./generate.py -f ../../rustdesk/ -o . -e "../../rustdesk/${BUILD_NAME}.exe"
+          python3 ./generate.py -f ../../rustdesk/ -o . -e "../../rustdesk/${{ env.appname }}.exe"
           popd
           mkdir -p ./SignOutput
           mv ./target/release/rustdesk-portable-packer.exe "./SignOutput/rustdesk.exe"
@@ -540,8 +526,8 @@ jobs:
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v2
 
-      - name: Fix WiX encoding
-        shell: pwsh
+      - name: Build msi
+        continue-on-error: true
         if: env.UPLOAD_ARTIFACT == 'true'
         run: |
           Get-ChildItem -Path "./res/msi" -Recurse -Include "*.wxs", "*.wxl" | ForEach-Object {
@@ -551,25 +537,15 @@ jobs:
               Set-Content $_.FullName -Value $content -Encoding UTF8 -NoNewline
             }
           }
-
-      - name: Build msi
-        continue-on-error: true
-        if: env.UPLOAD_ARTIFACT == 'true'
-        run: |
-          $buildName = "${{ env.BUILD_APPNAME }}"
-          $myappname = $buildName -replace '\s','_'
-          if (Test-Path "rustdesk/${buildName}.exe") {
-            cp "rustdesk/${buildName}.exe" "rustdesk/${myappname}.exe" -ErrorAction SilentlyContinue
-          }
+          $myappname = "${{ env.appname }}" -replace '\s','_'
+          cp "rustdesk/${{ env.appname }}.exe" "rustdesk/${myappname}.exe" -ErrorAction SilentlyContinue
           pushd ./res/msi
           python preprocess.py --app-name "$myappname" --arp -d ../../rustdesk
           nuget restore msi.sln
           msbuild msi.sln -p:Configuration=Release -p:Platform=x64 /p:TargetVersion=Windows10
-          if (Test-Path "./Package/bin/x64/Release/en-us/Package.msi") {
-            cp ./Package/bin/x64/Release/en-us/Package.msi ../../SignOutput/rustdesk-latest.msi
-            mv ./Package/bin/x64/Release/en-us/Package.msi ../../SignOutput/rustdesk.msi
-            sha256sum ../../SignOutput/rustdesk.msi
-          }
+          cp ./Package/bin/x64/Release/en-us/Package.msi ../../SignOutput/rustdesk-latest.msi
+          mv ./Package/bin/x64/Release/en-us/Package.msi ../../SignOutput/rustdesk.msi
+          sha256sum ../../SignOutput/rustdesk.msi
           popd
 
       - name: zip exe and msi
@@ -600,34 +576,14 @@ jobs:
           Remove-Item ./SignOutput/unsigned_files.zip
           Remove-Item ./SignOutput/signed_files.zip
 
-      - name: rename final output to Chinese
-        if: env.UPLOAD_ARTIFACT == 'true' && env.ORIGINAL_APPNAME != env.BUILD_APPNAME
-        run: |
-          if (Test-Path "./SignOutput/${{ env.BUILD_APPNAME }}.exe") {
-            mv "./SignOutput/${{ env.BUILD_APPNAME }}.exe" "./SignOutput/${{ env.ORIGINAL_APPNAME }}.exe" -Force
-          }
-          if (Test-Path "./SignOutput/rustdesk.msi") {
-            mv "./SignOutput/rustdesk.msi" "./SignOutput/${{ env.ORIGINAL_APPNAME }}.msi" -Force
-          }
-
       - name: rename rustdesk.exe to filename.exe
         run: |
-          $finalName = "${{ env.filename }}"
-          if (Test-Path "./SignOutput/${{ env.ORIGINAL_APPNAME }}.exe") {
-            mv "./SignOutput/${{ env.ORIGINAL_APPNAME }}.exe" "./SignOutput/${finalName}.exe" -Force -ErrorAction SilentlyContinue
-          } else {
-            mv "./SignOutput/rustdesk.exe" "./SignOutput/${finalName}.exe" -Force -ErrorAction SilentlyContinue
-          }
+          mv ./SignOutput/rustdesk.exe "./SignOutput/${{ env.filename }}.exe" || echo "rustdesk"
 
       - name: rename rustdesk.msi to filename.msi
         continue-on-error: true
         run: |
-          $finalName = "${{ env.filename }}"
-          if (Test-Path "./SignOutput/${{ env.ORIGINAL_APPNAME }}.msi") {
-            mv "./SignOutput/${{ env.ORIGINAL_APPNAME }}.msi" "./SignOutput/${finalName}.msi" -Force -ErrorAction SilentlyContinue
-          } elseif (Test-Path "./SignOutput/rustdesk.msi") {
-            mv "./SignOutput/rustdesk.msi" "./SignOutput/${finalName}.msi" -Force -ErrorAction SilentlyContinue
-          }
+          mv ./SignOutput/rustdesk.msi "./SignOutput/${{ env.filename }}.msi" || echo "rustdesk"
 
       - name: send file to rdgen server
         if: ${{ env.rdgen == 'true' }}
