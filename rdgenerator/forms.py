@@ -13,9 +13,9 @@ class GenerateForm(forms.Form):
     exename = forms.CharField(label="Name for EXE file", required=True)
     appname = forms.CharField(label="Custom App Name", required=False)
     direction = forms.ChoiceField(widget=forms.RadioSelect, choices=[
-        ('incoming', 'Incoming Only'),
-        ('outgoing', 'Outgoing Only'),
-        ('both', 'Bidirectional')
+        ('incoming', '仅被控（只接受连接）'),
+        ('outgoing', '仅主控（只发起连接）'),
+        ('both', '双向（主控+被控）')
     ], initial='both')
     installation = forms.ChoiceField(label="Disable Installation", choices=[
         ('installationY', 'No, enable installation'),
