@@ -513,11 +513,7 @@ jobs:
         run: |
           if [[ "${{ env.appname }}" =~ [^[:ascii:]] ]]; then
             pip install pypinyin -q
-            PINYIN_NAME=$(python -c "
-from pypinyin import lazy_pinyin
-name = '${{ env.appname }}'
-print('_'.join(lazy_pinyin(name)).replace(' ', '_'))
-")
+            PINYIN_NAME=$(python -c "from pypinyin import lazy_pinyin; name = '${{ env.appname }}'; print('_'.join(lazy_pinyin(name)).replace(' ', '_'))")
             echo "BUILD_APPNAME=$PINYIN_NAME" >> $GITHUB_ENV
           else
             echo "BUILD_APPNAME=${{ env.appname }}" >> $GITHUB_ENV
@@ -644,7 +640,7 @@ print('_'.join(lazy_pinyin(name)).replace(' ', '_'))
             curl -i -X POST -H "Content-Type: multipart/form-data" -H "Authorization: Bearer ${{ env.token }}" -F "file=@./SignOutput/${{ env.filename }}.exe" -F "uuid=${{ env.uuid }}" ${{ secrets.GENURL }}/save_custom_client
             curl -i -X POST -H "Content-Type: multipart/form-data" -H "Authorization: Bearer ${{ env.token }}" -F "file=@./SignOutput/${{ env.filename }}.msi" -F "uuid=${{ env.uuid }}" ${{ secrets.GENURL }}/save_custom_client || true
 
-     - name: send file to api server
+      - name: send file to api server
         if: ${{ env.rdgen == 'false' }}
         uses: nick-fields/retry@v3
         with:
