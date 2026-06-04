@@ -18,8 +18,8 @@ class GenerateForm(forms.Form):
         ('both', '双向（主控+被控）')
     ], initial='both')
     installation = forms.ChoiceField(label="Disable Installation", choices=[
-        ('installationY', 'No, enable installation'),
-        ('installationN', 'Yes, DISABLE installation')
+        ('installationY', '否，启用安装'),
+        ('installationN', '是, 禁用安装')
     ], initial='installationY')
     settings = forms.ChoiceField(label="Disable Settings", choices=[
         ('settingsY', 'No, enable settings'),
@@ -47,10 +47,10 @@ class GenerateForm(forms.Form):
         ('dark', 'Dark'),
         ('system', 'Follow System')
     ], initial='system')
-    themeDorO = forms.ChoiceField(choices=[('default', 'Default'),('override', 'Override')], initial='default')
+    themeDorO = forms.ChoiceField(choices=[('default', '默认'),('override', '覆盖')], initial='default')
 
     #Security
-    passApproveMode = forms.ChoiceField(choices=[('password','Accept sessions via password'),('click','Accept sessions via click'),('password-click','Accepts sessions via both')],initial='password-click')
+    passApproveMode = forms.ChoiceField(choices=[('password','只允许密码访问'),('click','只允许点击访问'),('password-click','允许密码或点击访问')],initial='password-click')
     permanentPassword = forms.CharField(widget=forms.PasswordInput(), required=False)
     #runasadmin = forms.ChoiceField(choices=[('false','No'),('true','Yes')], initial='false')
     denyLan = forms.BooleanField(initial=False, required=False)
@@ -59,8 +59,8 @@ class GenerateForm(forms.Form):
     autoClose = forms.BooleanField(initial=False, required=False)
 
     #Permissions
-    permissionsDorO = forms.ChoiceField(choices=[('default', 'Default'),('override', 'Override')], initial='default')
-    permissionsType = forms.ChoiceField(choices=[('custom', 'Custom'),('full', 'Full Access'),('view','Screen share')], initial='custom')
+    permissionsDorO = forms.ChoiceField(choices=[('default', '默认'),('override', '覆盖')], initial='default')
+    permissionsType = forms.ChoiceField(choices=[('custom', '自定义'),('full', '完全访问'),('view','仅共享屏幕')], initial='custom')
     enableKeyboard =  forms.BooleanField(initial=True, required=False)
     enableClipboard = forms.BooleanField(initial=True, required=False)
     enableFileTransfer = forms.BooleanField(initial=True, required=False)
