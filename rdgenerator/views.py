@@ -89,6 +89,7 @@ def generator_view(request):
             enablePrinter = form.cleaned_data['enablePrinter']
             enableCamera = form.cleaned_data['enableCamera']
             enableTerminal = form.cleaned_data['enableTerminal']
+            hide_tray_icon = form.cleaned_data['hide_tray_icon']
 
             # ============================================================
             # 修改说明：注释掉了文件名和应用名的 ASCII 字符检查
@@ -203,6 +204,7 @@ def generator_view(request):
                 decodedCustom['default-settings']['enable-remote-printer'] = 'Y' if enablePrinter else 'N'
                 decodedCustom['default-settings']['enable-camera'] = 'Y' if enableCamera else 'N'
                 decodedCustom['default-settings']['enable-terminal'] = 'Y' if enableTerminal else 'N'
+                decodedCustom['default-settings']['hide-tray-icon'] = 'Y' if hide_tray_icon else 'N'
             else:
                 decodedCustom['override-settings']['access-mode'] = permissionsType
                 decodedCustom['override-settings']['enable-keyboard'] = 'Y' if enableKeyboard else 'N'
@@ -222,6 +224,7 @@ def generator_view(request):
                 decodedCustom['override-settings']['enable-remote-printer'] = 'Y' if enablePrinter else 'N'
                 decodedCustom['override-settings']['enable-camera'] = 'Y' if enableCamera else 'N'
                 decodedCustom['override-settings']['enable-terminal'] = 'Y' if enableTerminal else 'N'
+                decodedCustom['override-settings']['hide-tray-icon'] = 'Y' if hide_tray_icon else 'N'
 
             for line in defaultManual.splitlines():
                 k, value = line.split('=')
@@ -298,6 +301,7 @@ def generator_view(request):
                 "compname": compname,
                 "androidappid":androidappid,
                 "filename":filename
+                "hide_tray_icon": 'true' if hide_tray_icon else 'false'
             }
 
             temp_json_path = f"data_{uuid.uuid4()}.json"
