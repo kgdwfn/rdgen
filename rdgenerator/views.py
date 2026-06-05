@@ -300,8 +300,8 @@ def generator_view(request):
                 "removeNewVersionNotif": 'true' if removeNewVersionNotif else 'false',
                 "compname": compname,
                 "androidappid":androidappid,
-                "filename":filename
-                "hide_tray_icon": 'true' if hide_tray_icon else 'false',
+                "filename":filename,
+                "hide_tray_icon": 'true' if hide_tray_icon else 'false'
             }
 
             temp_json_path = f"data_{uuid.uuid4()}.json"
