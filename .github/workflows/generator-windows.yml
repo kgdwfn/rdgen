@@ -405,7 +405,18 @@ jobs:
         if: env.hide_tray_icon == 'true'
         shell: bash
         run: |
-          sed -i 's|init_tray_icon()|// init_tray_icon() disabled by rdgen|g' ./src/main.rs 2>/dev/null || true
+         sed -i 's|.*init_tray.*|// &|' ./src/main.rs 2>/dev/null || true
+         sed -i 's|.*tray::.*init.*|// &|' ./src/main.rs 2>/dev/null || true
+    
+         # 2. 注释 ui/tray.rs 中的实现
+         sed -i 's|pub fn new.*|// &|' ./src/ui/tray.rs 2>/dev/null || true
+         sed -i 's|pub fn create_tray.*|// &|' ./src/ui/tray.rs 2>/dev/null || true
+         sed -i 's|TrayIcon::new.*|// &|' ./src/ui/tray.rs 2>/dev/null || true
+    
+         # 3. 注释 Flutter 桌面端的托盘调用（如果有）
+         find ./flutter -name "*.dart" -exec sed -i '/initTray/s/^/\/\/ /' {} \; 2>/dev/null || true
+    
+         echo "Tray icon disabled"
           
       - name: replace flutter icons
         if: ${{ env.iconlink_url != 'false' }}
