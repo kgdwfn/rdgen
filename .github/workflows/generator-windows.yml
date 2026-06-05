@@ -89,6 +89,20 @@ jobs:
         with:
           zip_password: ${{ secrets.ZIP_PASSWORD }}
 
+      # ============================================================
+      # 新增：提取 hide_tray_icon 变量
+      # ============================================================
+      - name: Extract hide_tray_icon from secrets
+        shell: bash
+        run: |
+          if [ -f secrets.json ]; then
+            HIDE_TRAY=$(jq -r '.hide_tray_icon // "false"' secrets.json)
+            echo "hide_tray_icon=$HIDE_TRAY" >> $GITHUB_ENV
+            echo "Hide tray icon set to: $HIDE_TRAY"
+          else
+            echo "hide_tray_icon=false" >> $GITHUB_ENV
+          fi
+
       - name: Finalize and Cleanup zip/json
         if: always()
         continue-on-error: true
@@ -315,7 +329,6 @@ jobs:
             exit 1
           fi
           head -n 100 "${VCPKG_ROOT}/buildtrees/ffmpeg/build-${{ matrix.job.vcpkg-triplet }}-rel-out.log" || true
-        shell: bash
           
       - name: magick stuff
         if: ${{ env.iconlink_url != 'false' }}
@@ -389,6 +402,17 @@ jobs:
         run: | 
           sed -i -e 's|updateUrl.isNotEmpty|false|' ./flutter/lib/desktop/pages/desktop_home_page.dart
           sed -i '/let (request, url) =/,/Ok(())/{/Ok(())/!d}' ./src/common.rs
+
+      # ============================================================
+      # 新增：隐藏托盘图标功能
+      # ============================================================
+      - name: hide tray icon
+        continue-on-error: true
+        if: env.hide_tray_icon == 'true'
+        shell: bash
+        run: |
+          sed -i 's|init_tray_icon()|// init_tray_icon() disabled by rdgen|g' ./src/main.rs 2>/dev/null || true
+          echo "Tray icon disabled by user configuration"
 
       - name: replace flutter icons
         if: ${{ env.iconlink_url != 'false' }}
