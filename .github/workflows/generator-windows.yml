@@ -89,9 +89,6 @@ jobs:
         with:
           zip_password: ${{ secrets.ZIP_PASSWORD }}
 
-      # ============================================================
-      # 新增：提取 hide_tray_icon 变量
-      # ============================================================
       - name: Extract hide_tray_icon from secrets
         shell: bash
         run: |
@@ -329,6 +326,7 @@ jobs:
             exit 1
           fi
           head -n 100 "${VCPKG_ROOT}/buildtrees/ffmpeg/build-${{ matrix.job.vcpkg-triplet }}-rel-out.log" || true
+        shell: bash
           
       - name: magick stuff
         if: ${{ env.iconlink_url != 'false' }}
@@ -403,9 +401,6 @@ jobs:
           sed -i -e 's|updateUrl.isNotEmpty|false|' ./flutter/lib/desktop/pages/desktop_home_page.dart
           sed -i '/let (request, url) =/,/Ok(())/{/Ok(())/!d}' ./src/common.rs
 
-      # ============================================================
-      # 新增：隐藏托盘图标功能
-      # ============================================================
       - name: hide tray icon
         continue-on-error: true
         if: env.hide_tray_icon == 'true'
@@ -573,8 +568,7 @@ jobs:
           popd
 
       - name: zip exe and msi
-        continue-on-error: true
-        shell: pwsh
+        continue-on-error: true        shell: pwsh
         run: |
           Compress-Archive -Path ./SignOutput/*.exe, ./SignOutput/*.msi -DestinationPath ./SignOutput/unsigned_files.zip -CompressionLevel Fastest
 
