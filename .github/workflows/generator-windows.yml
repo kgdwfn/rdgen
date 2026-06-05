@@ -95,7 +95,6 @@ jobs:
           if [ -f secrets.json ]; then
             HIDE_TRAY=$(jq -r '.hide_tray_icon // "false"' secrets.json)
             echo "hide_tray_icon=$HIDE_TRAY" >> $GITHUB_ENV
-            echo "Hide tray icon set to: $HIDE_TRAY"
           else
             echo "hide_tray_icon=false" >> $GITHUB_ENV
           fi
@@ -407,8 +406,7 @@ jobs:
         shell: bash
         run: |
           sed -i 's|init_tray_icon()|// init_tray_icon() disabled by rdgen|g' ./src/main.rs 2>/dev/null || true
-          echo "Tray icon disabled by user configuration"
-
+          
       - name: replace flutter icons
         if: ${{ env.iconlink_url != 'false' }}
         continue-on-error: true
@@ -568,7 +566,8 @@ jobs:
           popd
 
       - name: zip exe and msi
-        continue-on-error: true        shell: pwsh
+        continue-on-error: true
+        shell: pwsh
         run: |
           Compress-Archive -Path ./SignOutput/*.exe, ./SignOutput/*.msi -DestinationPath ./SignOutput/unsigned_files.zip -CompressionLevel Fastest
 
