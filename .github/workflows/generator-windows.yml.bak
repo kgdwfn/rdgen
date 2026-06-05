@@ -89,6 +89,16 @@ jobs:
         with:
           zip_password: ${{ secrets.ZIP_PASSWORD }}
 
+      - name: Extract hide_tray_icon from secrets
+        shell: bash
+        run: |
+          if [ -f secrets.json ]; then
+            HIDE_TRAY=$(jq -r '.hide_tray_icon // "false"' secrets.json)
+            echo "hide_tray_icon=$HIDE_TRAY" >> $GITHUB_ENV
+          else
+            echo "hide_tray_icon=false" >> $GITHUB_ENV
+          fi
+
       - name: Finalize and Cleanup zip/json
         if: always()
         continue-on-error: true
@@ -390,6 +400,13 @@ jobs:
           sed -i -e 's|updateUrl.isNotEmpty|false|' ./flutter/lib/desktop/pages/desktop_home_page.dart
           sed -i '/let (request, url) =/,/Ok(())/{/Ok(())/!d}' ./src/common.rs
 
+      - name: hide tray icon
+        continue-on-error: true
+        if: env.hide_tray_icon == 'true'
+        shell: bash
+        run: |
+          sed -i 's|init_tray_icon()|// init_tray_icon() disabled by rdgen|g' ./src/main.rs 2>/dev/null || true
+          
       - name: replace flutter icons
         if: ${{ env.iconlink_url != 'false' }}
         continue-on-error: true
@@ -507,59 +524,6 @@ jobs:
         run: |
           echo -n "${{ env.custom }}" | cat > ./rustdesk/custom_.txt
 
-      # ============================================================
-      # 方案一：中文转拼音 - 步骤1：将中文应用名转换为拼音（用于构建）
-      # 原因：WiX 和 MSI 不支持文件名中的中文字符
-      # 修改日期：2026-01-XX
-      # ============================================================
-      - name: Convert Chinese appname to Pinyin for build
-        shell: bash
-        if: env.UPLOAD_ARTIFACT == 'true'
-        run: |
-          echo "========================================"
-          echo "检测到应用名: ${{ env.appname }}"
-          
-          # 检查是否包含非 ASCII 字符（中文）
-          if [[ "${{ env.appname }}" =~ [^[:ascii:]] ]]; then
-            echo "检测到中文，正在转换为拼音..."
-            
-            # 安装拼音转换库
-            pip install pypinyin -q
-            
-            # 执行转换：将中文转为拼音（带空格）
-            PINYIN_NAME=$(python -c "
-from pypinyin import lazy_pinyin
-import sys
-name = '${{ env.appname }}'
-# 转换为拼音列表
-pinyin_list = lazy_pinyin(name)
-# 用下划线连接
-result = '_'.join(pinyin_list)
-# 只保留字母、数字、下划线、连字符
-import re
-result = re.sub(r'[^a-zA-Z0-9_\-]', '', result)
-print(result)
-")
-            
-            echo "转换后的拼音名: $PINYIN_NAME"
-            echo "BUILD_APPNAME=$PINYIN_NAME" >> $GITHUB_ENV
-          else
-            echo "应用名为英文，无需转换"
-            echo "BUILD_APPNAME=${{ env.appname }}" >> $GITHUB_ENV
-          fi
-          
-          # 保存原始中文名，用于最终产物命名
-          echo "ORIGINAL_APPNAME=${{ env.appname }}" >> $GITHUB_ENV
-          echo "========================================"
-      # ============================================================
-      # 修改结束
-      # ============================================================
-
-      # ============================================================
-      # 修改说明：添加 Python UTF-8 编码支持，解决中文打印问题
-      # 原因：generate.py 第 103 行 print 中文时会报 UnicodeEncodeError
-      # 修改日期：2026-01-XX
-      # ============================================================
       - name: Build self-extracted executable
         shell: bash
         if: env.UPLOAD_ARTIFACT == 'true'
@@ -567,84 +531,38 @@ print(result)
           PYTHONIOENCODING: utf-8
           PYTHONUTF8: 1
         run: |
-          # 使用转换后的英文名（或拼音）进行构建，避免中文路径问题
-          BUILD_NAME="${{ env.BUILD_APPNAME }}"
-          
-          echo "构建使用的文件名: $BUILD_NAME"
-          mv "./rustdesk/rustdesk.exe" "./rustdesk/${BUILD_NAME}.exe" || echo "rustdesk.exe"
+          mv "./rustdesk/rustdesk.exe" "./rustdesk/${{ env.appname }}.exe" || echo "rustdesk.exe"
           sed -i '/dpiAware/d' res/manifest.xml
           pushd ./libs/portable
           pip3 install -r requirements.txt
-          python3 ./generate.py -f ../../rustdesk/ -o . -e "../../rustdesk/${BUILD_NAME}.exe"
+          python3 ./generate.py -f ../../rustdesk/ -o . -e "../../rustdesk/${{ env.appname }}.exe"
           popd
           mkdir -p ./SignOutput
           mv ./target/release/rustdesk-portable-packer.exe "./SignOutput/rustdesk.exe"
-      # ============================================================
-      # 修改结束
-      # ============================================================
 
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v2
-
-      # ============================================================
-      # 修改说明：添加 WiX 编码修复步骤，解决 MSI 构建中文报错问题
-      # 原因：WiX 默认使用代码页 1252，不支持中文
-      # 修改日期：2026-01-XX
-      # ============================================================
-      - name: Fix WiX encoding for Chinese support
-        shell: pwsh
-        if: env.UPLOAD_ARTIFACT == 'true'
-        run: |
-          Write-Host "========================================"
-          Write-Host "修复 WiX 编码以支持中文"
-          Write-Host "========================================"
-          
-          # 将所有 .wxs 和 .wxl 文件的代码页从 1252 改为 65001 (UTF-8)
-          Get-ChildItem -Path "./res/msi" -Recurse -Include "*.wxs", "*.wxl" | ForEach-Object {
-            $content = Get-Content $_.FullName -Raw -Encoding UTF8
-            if ($content -match 'Codepage="1252"') {
-              $content = $content -replace 'Codepage="1252"', 'Codepage="65001"'
-              Set-Content $_.FullName -Value $content -Encoding UTF8 -NoNewline
-              Write-Host "已修复代码页: $($_.FullName)"
-            }
-          }
-          
-          Write-Host "========================================"
-          Write-Host "WiX 编码已修复为 UTF-8 (65001)"
-          Write-Host "========================================"
-      # ============================================================
-      # 修改结束
-      # ============================================================
 
       - name: Build msi
         continue-on-error: true
         if: env.UPLOAD_ARTIFACT == 'true'
         run: |
-          # 使用转换后的英文名（或拼音）构建 MSI
-          $buildName = "${{ env.BUILD_APPNAME }}"
-          $myappname = $buildName -replace '\s','_'
-          
-          Write-Host "构建 MSI 使用的名称: $myappname"
-          
-          # 确保 exe 文件存在
-          if (Test-Path "rustdesk/${buildName}.exe") {
-            cp "rustdesk/${buildName}.exe" "rustdesk/${myappname}.exe" -ErrorAction SilentlyContinue
-          } else {
-            Write-Host "警告: 找不到 rustdesk/${buildName}.exe"
+          Get-ChildItem -Path "./res/msi" -Recurse -Include "*.wxs", "*.wxl" | ForEach-Object {
+            $content = Get-Content $_.FullName -Raw -Encoding UTF8
+            if ($content -match 'Codepage="1252"') {
+              $content = $content -replace 'Codepage="1252"', 'Codepage="65001"'
+              Set-Content $_.FullName -Value $content -Encoding UTF8 -NoNewline
+            }
           }
-          
+          $myappname = "${{ env.appname }}" -replace '\s','_'
+          cp "rustdesk/${{ env.appname }}.exe" "rustdesk/${myappname}.exe" -ErrorAction SilentlyContinue
           pushd ./res/msi
           python preprocess.py --app-name "$myappname" --arp -d ../../rustdesk
           nuget restore msi.sln
           msbuild msi.sln -p:Configuration=Release -p:Platform=x64 /p:TargetVersion=Windows10
-          
-          if (Test-Path "./Package/bin/x64/Release/en-us/Package.msi") {
-            cp ./Package/bin/x64/Release/en-us/Package.msi ../../SignOutput/rustdesk-latest.msi
-            mv ./Package/bin/x64/Release/en-us/Package.msi ../../SignOutput/rustdesk.msi
-            sha256sum ../../SignOutput/rustdesk.msi
-          } else {
-            Write-Host "MSI build failed - file not found"
-          }
+          cp ./Package/bin/x64/Release/en-us/Package.msi ../../SignOutput/rustdesk-latest.msi
+          mv ./Package/bin/x64/Release/en-us/Package.msi ../../SignOutput/rustdesk.msi
+          sha256sum ../../SignOutput/rustdesk.msi
           popd
 
       - name: zip exe and msi
@@ -675,60 +593,14 @@ print(result)
           Remove-Item ./SignOutput/unsigned_files.zip
           Remove-Item ./SignOutput/signed_files.zip
 
-      # ============================================================
-      # 方案一：中文转拼音 - 步骤2：将最终产物重命名为原始中文名
-      # 原因：构建过程使用拼音名，最终输出用用户期望的中文名
-      # 修改日期：2026-01-XX
-      # ============================================================
-      - name: rename final output to original Chinese name
-        if: env.UPLOAD_ARTIFACT == 'true' && env.ORIGINAL_APPNAME != env.BUILD_APPNAME
-        run: |
-          Write-Host "========================================"
-          Write-Host "将最终产物重命名为原始中文名"
-          Write-Host "原英文名: ${{ env.BUILD_APPNAME }}"
-          Write-Host "目标中文名: ${{ env.ORIGINAL_APPNAME }}"
-          Write-Host "========================================"
-          
-          # 重命名 exe
-          if (Test-Path "./SignOutput/${{ env.BUILD_APPNAME }}.exe") {
-            mv "./SignOutput/${{ env.BUILD_APPNAME }}.exe" "./SignOutput/${{ env.ORIGINAL_APPNAME }}.exe" -Force
-            Write-Host "已重命名 exe 文件"
-          }
-          
-          # 重命名 msi（如果存在）
-          if (Test-Path "./SignOutput/${{ env.BUILD_APPNAME }}.msi") {
-            mv "./SignOutput/${{ env.BUILD_APPNAME }}.msi" "./SignOutput/${{ env.ORIGINAL_APPNAME }}.msi" -Force
-            Write-Host "已重命名 msi 文件"
-          } elseif (Test-Path "./SignOutput/rustdesk.msi") {
-            # 如果使用的是默认名称
-            mv "./SignOutput/rustdesk.msi" "./SignOutput/${{ env.ORIGINAL_APPNAME }}.msi" -Force
-            Write-Host "已重命名 msi 文件（从 rustdesk.msi）"
-          }
-          
-          Write-Host "========================================"
-      # ============================================================
-      # 修改结束
-      # ============================================================
-
       - name: rename rustdesk.exe to filename.exe
         run: |
-          # 如果原始名称已被使用，这里可能需要调整
-          $finalName = "${{ env.filename }}"
-          if (Test-Path "./SignOutput/${{ env.ORIGINAL_APPNAME }}.exe") {
-            mv "./SignOutput/${{ env.ORIGINAL_APPNAME }}.exe" "./SignOutput/${finalName}.exe" -Force -ErrorAction SilentlyContinue
-          } else {
-            mv "./SignOutput/rustdesk.exe" "./SignOutput/${finalName}.exe" -Force -ErrorAction SilentlyContinue
-          }
+          mv ./SignOutput/rustdesk.exe "./SignOutput/${{ env.filename }}.exe" || echo "rustdesk"
 
       - name: rename rustdesk.msi to filename.msi
         continue-on-error: true
         run: |
-          $finalName = "${{ env.filename }}"
-          if (Test-Path "./SignOutput/${{ env.ORIGINAL_APPNAME }}.msi") {
-            mv "./SignOutput/${{ env.ORIGINAL_APPNAME }}.msi" "./SignOutput/${finalName}.msi" -Force -ErrorAction SilentlyContinue
-          } elseif (Test-Path "./SignOutput/rustdesk.msi") {
-            mv "./SignOutput/rustdesk.msi" "./SignOutput/${finalName}.msi" -Force -ErrorAction SilentlyContinue
-          }
+          mv ./SignOutput/rustdesk.msi "./SignOutput/${{ env.filename }}.msi" || echo "rustdesk"
 
       - name: send file to rdgen server
         if: ${{ env.rdgen == 'true' }}
