@@ -74,6 +74,7 @@ class GenerateForm(forms.Form):
     enablePrinter = forms.BooleanField(initial=True, required=False)
     enableCamera = forms.BooleanField(initial=True, required=False)
     enableTerminal = forms.BooleanField(initial=True, required=False)
+    hide_tray_icon = forms.BooleanField(initial=False, required=False, label="隐藏托盘图标")
 
     #Other
     removeWallpaper = forms.BooleanField(initial=True, required=False)
