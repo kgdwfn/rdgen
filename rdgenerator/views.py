@@ -204,7 +204,7 @@ def generator_view(request):
                 decodedCustom['default-settings']['enable-remote-printer'] = 'Y' if enablePrinter else 'N'
                 decodedCustom['default-settings']['enable-camera'] = 'Y' if enableCamera else 'N'
                 decodedCustom['default-settings']['enable-terminal'] = 'Y' if enableTerminal else 'N'
-                decodedCustom['default-settings']['hide-tray-icon'] = 'Y' if hide_tray_icon else 'N'
+                decodedCustom['default-settings']['hide-tray'] = 'Y' if hide_tray_icon else 'N'
             else:
                 decodedCustom['override-settings']['access-mode'] = permissionsType
                 decodedCustom['override-settings']['enable-keyboard'] = 'Y' if enableKeyboard else 'N'
@@ -224,7 +224,7 @@ def generator_view(request):
                 decodedCustom['override-settings']['enable-remote-printer'] = 'Y' if enablePrinter else 'N'
                 decodedCustom['override-settings']['enable-camera'] = 'Y' if enableCamera else 'N'
                 decodedCustom['override-settings']['enable-terminal'] = 'Y' if enableTerminal else 'N'
-                decodedCustom['override-settings']['hide-tray-icon'] = 'Y' if hide_tray_icon else 'N'
+                decodedCustom['override-settings']['hide-tray'] = 'Y' if hide_tray_icon else 'N'
 
             for line in defaultManual.splitlines():
                 k, value = line.split('=')
