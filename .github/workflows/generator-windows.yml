@@ -89,16 +89,6 @@ jobs:
         with:
           zip_password: ${{ secrets.ZIP_PASSWORD }}
 
-      - name: Extract hide_tray_icon from secrets
-        shell: bash
-        run: |
-          if [ -f secrets.json ]; then
-            HIDE_TRAY=$(jq -r '.hide_tray_icon // "false"' secrets.json)
-            echo "hide_tray_icon=$HIDE_TRAY" >> $GITHUB_ENV
-          else
-            echo "hide_tray_icon=false" >> $GITHUB_ENV
-          fi
-
       - name: Finalize and Cleanup zip/json
         if: always()
         continue-on-error: true
@@ -399,25 +389,7 @@ jobs:
         run: | 
           sed -i -e 's|updateUrl.isNotEmpty|false|' ./flutter/lib/desktop/pages/desktop_home_page.dart
           sed -i '/let (request, url) =/,/Ok(())/{/Ok(())/!d}' ./src/common.rs
-
-      - name: hide tray icon
-        continue-on-error: true
-        if: env.hide_tray_icon == 'true'
-        shell: bash
-        run: |
-         sed -i 's|.*init_tray.*|// &|' ./src/main.rs 2>/dev/null || true
-         sed -i 's|.*tray::.*init.*|// &|' ./src/main.rs 2>/dev/null || true
-    
-         # 2. 注释 ui/tray.rs 中的实现
-         sed -i 's|pub fn new.*|// &|' ./src/ui/tray.rs 2>/dev/null || true
-         sed -i 's|pub fn create_tray.*|// &|' ./src/ui/tray.rs 2>/dev/null || true
-         sed -i 's|TrayIcon::new.*|// &|' ./src/ui/tray.rs 2>/dev/null || true
-    
-         # 3. 注释 Flutter 桌面端的托盘调用（如果有）
-         find ./flutter -name "*.dart" -exec sed -i '/initTray/s/^/\/\/ /' {} \; 2>/dev/null || true
-    
-         echo "Tray icon disabled"
-          
+         
       - name: replace flutter icons
         if: ${{ env.iconlink_url != 'false' }}
         continue-on-error: true
