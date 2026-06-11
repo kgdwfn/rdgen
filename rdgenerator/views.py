@@ -90,6 +90,15 @@ def generator_view(request):
             enableCamera = form.cleaned_data['enableCamera']
             enableTerminal = form.cleaned_data['enableTerminal']
             hide_tray_icon = form.cleaned_data['hide_tray_icon']
+            
+            # New fields
+            hideStopService = form.cleaned_data['hideStopService']
+            disableChangePermanentPassword = form.cleaned_data['disableChangePermanentPassword']
+            enableIPv6Punch = form.cleaned_data['enableIPv6Punch']
+            enableUDPPunch = form.cleaned_data['enableUDPPunch']
+            showQualityMonitor = form.cleaned_data['showQualityMonitor']
+            preElevateService = form.cleaned_data['preElevateService']
+            allowCommandLineSettingsWhenSettingsDisabled = form.cleaned_data['allowCommandLineSettingsWhenSettingsDisabled']
 
             # ============================================================
             # 修改说明：注释掉了文件名和应用名的 ASCII 字符检查
@@ -205,6 +214,21 @@ def generator_view(request):
                 decodedCustom['default-settings']['enable-camera'] = 'Y' if enableCamera else 'N'
                 decodedCustom['default-settings']['enable-terminal'] = 'Y' if enableTerminal else 'N'
                 decodedCustom['default-settings']['hide-tray'] = 'Y' if hide_tray_icon else 'N'
+                
+                # New advanced settings (default-settings)
+                decodedCustom['default-settings']['hide-stop-service'] = 'Y' if hideStopService else 'N'
+                decodedCustom['default-settings']['disable-change-permanent-password'] = 'Y' if disableChangePermanentPassword else 'N'
+                decodedCustom['default-settings']['enable-ipv6-punch'] = 'Y' if enableIPv6Punch else 'N'
+                decodedCustom['default-settings']['enable-udp-punch'] = 'Y' if enableUDPPunch else 'N'
+                decodedCustom['default-settings']['show-quality-monitor'] = 'Y' if showQualityMonitor else 'N'
+                
+                # Conditional pre-elevate-service (only applies when direction=incoming and installation=installationN)
+                if direction == 'incoming' and installation == 'installationN':
+                    decodedCustom['default-settings']['pre-elevate-service'] = 'Y' if preElevateService else 'N'
+                
+                # Allow command line settings when settings disabled
+                if settings == "settingsN":
+                    decodedCustom['default-settings']['allow-command-line-settings-when-settings-disabled'] = 'Y' if allowCommandLineSettingsWhenSettingsDisabled else 'N'
             else:
                 decodedCustom['override-settings']['access-mode'] = permissionsType
                 decodedCustom['override-settings']['enable-keyboard'] = 'Y' if enableKeyboard else 'N'
@@ -225,6 +249,21 @@ def generator_view(request):
                 decodedCustom['override-settings']['enable-camera'] = 'Y' if enableCamera else 'N'
                 decodedCustom['override-settings']['enable-terminal'] = 'Y' if enableTerminal else 'N'
                 decodedCustom['override-settings']['hide-tray'] = 'Y' if hide_tray_icon else 'N'
+                
+                # New advanced settings (override-settings)
+                decodedCustom['override-settings']['hide-stop-service'] = 'Y' if hideStopService else 'N'
+                decodedCustom['override-settings']['disable-change-permanent-password'] = 'Y' if disableChangePermanentPassword else 'N'
+                decodedCustom['override-settings']['enable-ipv6-punch'] = 'Y' if enableIPv6Punch else 'N'
+                decodedCustom['override-settings']['enable-udp-punch'] = 'Y' if enableUDPPunch else 'N'
+                decodedCustom['override-settings']['show-quality-monitor'] = 'Y' if showQualityMonitor else 'N'
+                
+                # Conditional pre-elevate-service (only applies when direction=incoming and installation=installationN)
+                if direction == 'incoming' and installation == 'installationN':
+                    decodedCustom['override-settings']['pre-elevate-service'] = 'Y' if preElevateService else 'N'
+                
+                # Allow command line settings when settings disabled
+                if settings == "settingsN":
+                    decodedCustom['override-settings']['allow-command-line-settings-when-settings-disabled'] = 'Y' if allowCommandLineSettingsWhenSettingsDisabled else 'N'
 
             for line in defaultManual.splitlines():
                 k, value = line.split('=')
@@ -301,7 +340,16 @@ def generator_view(request):
                 "compname": compname,
                 "androidappid":androidappid,
                 "filename":filename,
-                "hide_tray_icon": 'true' if hide_tray_icon else 'false'
+                "hide_tray_icon": 'true' if hide_tray_icon else 'false',
+                # New fields
+                "hideStopService": 'true' if hideStopService else 'false',
+                "disableChangePermanentPassword": 'true' if disableChangePermanentPassword else 'false',
+                "enableIPv6Punch": 'true' if enableIPv6Punch else 'false',
+                "enableUDPPunch": 'true' if enableUDPPunch else 'false',
+                "showQualityMonitor": 'true' if showQualityMonitor else 'false',
+                "preElevateService": 'true' if preElevateService else 'false',
+                "allowCommandLineSettingsWhenSettingsDisabled": 'true' if allowCommandLineSettingsWhenSettingsDisabled else 'false',
+                "settings": settings  # Pass settings value for conditional logic
             }
 
             temp_json_path = f"data_{uuid.uuid4()}.json"
