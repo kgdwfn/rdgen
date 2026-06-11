@@ -81,8 +81,8 @@ class GenerateForm(forms.Form):
     
     # New advanced settings (default checked)
     hide_tray_icon = forms.BooleanField(initial=False, required=False, label="隐藏托盘图标")
-    hideStopService = forms.BooleanField(initial=True, required=False, label="隐藏常规和托盘上的服务启停")
-    disableChangePermanentPassword = forms.BooleanField(initial=True, required=False, label="禁止更改永久密码")
+    hideStopService = forms.BooleanField(initial=False, required=False, label="隐藏常规和托盘上的服务启停")
+    disableChangePermanentPassword = forms.BooleanField(initial=False, required=False, label="禁止更改永久密码")
     enableIPv6Punch = forms.BooleanField(initial=True, required=False, label="启用 IPv6 P2P 连接")
     enableUDPPunch = forms.BooleanField(initial=True, required=False, label="启用 UDP 打洞")
     showQualityMonitor = forms.BooleanField(initial=True, required=False, label="显示质量监视器")
@@ -91,7 +91,7 @@ class GenerateForm(forms.Form):
     preElevateService = forms.BooleanField(initial=True, required=False, label="便携版自动提升权限")
     
     # New security option
-    allowCommandLineSettingsWhenSettingsDisabled = forms.BooleanField(initial=True, required=False, label="禁用设置时允许命令行修改配置")
+    allowCommandLineSettingsWhenSettingsDisabled = forms.BooleanField(initial=False, required=False, label="禁用设置时允许命令行修改配置")
 
     defaultManual = forms.CharField(widget=forms.Textarea, required=False)
     overrideManual = forms.CharField(widget=forms.Textarea, required=False)
