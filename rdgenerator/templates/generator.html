@@ -395,10 +395,6 @@
                     <label for="{{ form.removeWallpaper.id_for_label }}">{{ form.removeWallpaper }} 接入远程会话时移除桌面壁纸</label><br>
                     
                     <!-- 新增高级设置选项（默认勾选） -->
-                    <label for="{{ form.hideStopService.id_for_label }}">
-                        {{ form.hideStopService }} 隐藏常规和托盘上的服务启停
-                    </label><br>
-                    
                     <label for="{{ form.disableChangePermanentPassword.id_for_label }}">
                         {{ form.disableChangePermanentPassword }} 禁止更改永久密码
                     </label><br>
@@ -414,7 +410,10 @@
                     <label for="{{ form.showQualityMonitor.id_for_label }}">
                         {{ form.showQualityMonitor }} 显示质量监视器
                     </label><br>
-                    
+                
+                        {{ form.hideStopService }} 隐藏常规和托盘上的服务启停
+                    </label><br>
+                
                     <!-- 隐藏托盘图标已从权限区块移到这里 -->
                     <label for="{{ form.hide_tray_icon.id_for_label }}">
                         {{ form.hide_tray_icon }} 隐藏托盘图标
