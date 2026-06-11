@@ -338,7 +338,7 @@
 
                     <!-- 新增：禁用设置时允许命令行修改 -->
                     <label for="{{ form.allowCommandLineSettingsWhenSettingsDisabled.id_for_label }}">
-                        {{ form.allowCommandLineSettingsWhenSettingsDisabled }} 禁用设置时允许命令行修改配置
+                        {{ form.allowCommandLineSettingsWhenSettingsDisabled }} 禁用设置
                     </label><br>
             </div>
         
@@ -360,7 +360,7 @@
                     <!-- <input type="file" name="iconfile" id="iconfile" accept="image/png"> -->
                     <div id="privacy-preview"></div><br><br>
                     <label for="{{ form.theme.id_for_label }}">主题:</label>
-                    {{ form.theme }} {{ form.themeDorO }} *默认模式仅设定主题，客户端仍可自行修改；强制模式将永久锁定主题不可更改。<br><br>
+                    {{ form.theme }} {{ form.themeDorO }} *默认模式仅设定主题，客户端仍可自行修改；覆盖模式将永久锁定主题不可更改。<br><br>
             </div>
         </div>
         <div class="container">
