@@ -483,17 +483,18 @@
             const direction = document.querySelector('input[name="direction"]:checked').value;
             const installation = document.querySelector('select[name="installation"]').value;
             const container = document.getElementById('preElevateServiceContainer');
-            
+            const checkbox = document.getElementById('{{ form.preElevateService.id_for_label }}');
+    
             if (direction === 'incoming' && installation === 'installationN') {
                 container.style.display = 'block';
+        // 显示时默认打上勾
+            if (checkbox) checkbox.checked = true;
             } else {
                 container.style.display = 'none';
-                // 如果隐藏，取消勾选
-                const checkbox = document.getElementById('{{ form.preElevateService.id_for_label }}');
-                if (checkbox) checkbox.checked = false;
+        // 如果隐藏，取消勾选
+             if (checkbox) checkbox.checked = false;
             }
         }
-        
         // 监听连接类型变化
         document.querySelectorAll('input[name="direction"]').forEach(radio => {
             radio.addEventListener('change', togglePreElevateService);
