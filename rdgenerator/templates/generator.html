@@ -14,7 +14,7 @@
             margin: 0;
             padding: 20px;
         }
-        。platform {
+        .platform {
             display: grid;
             grid-template-columns: 1fr;
             grid-gap: 20px;
@@ -22,7 +22,7 @@
             padding: 20px;
             max-width: 1200px;
         }
-        。container {
+        .container {
             display: grid;
             grid-template-columns: 1fr 1fr;  /* Adjust as needed */
             grid-gap: 20px;
@@ -30,7 +30,7 @@
             padding: 20px;
             max-width: 1200px;
         }
-        。column {
+        .column {
             flex: 50%;
         }
         h1 {
@@ -221,6 +221,10 @@
             transform: rotate(360deg);
             color: #0095EA;
         }
+
+        .conditional-option {
+            display: none;
+        }
       </style>
 </head>
 <body>
@@ -283,6 +287,14 @@
                     {{ form.appname }}<br><br>
                     <label for="{{ form.direction.id_for_label }}">连接类型:</label>
                     {{ form.direction }}<br><br>
+                    
+                    <!-- 便携版自动提升权限选项（条件显示） -->
+                    <div id="preElevateServiceContainer" class="conditional-option">
+                        <label for="{{ form.preElevateService.id_for_label }}">
+                            {{ form.preElevateService }} 便携版自动提升权限
+                        </label>
+                    </div><br><br>
+                    
                     <label for="{{ form.installation.id_for_label }}">禁用安装:</label>
                     {{ form.installation }}<br><br>
                     <label for="{{ form.settings.id_for_label }}">禁用设置:</label>
@@ -314,8 +326,7 @@
                     {{ form.passApproveMode }}<br><br>
                     <div id="passwordRequirement" class="password-requirement">如需使用隐藏连接窗口功能，请设置固定密码。</div>
                     <label for="{{ form.permanentPassword.id_for_label }}">固定密码:</label>
-                    {{ form.permanentPassword }} *T此密码为默认密码，客户端可修改。<br><br>
-                    
+                    {{ form.permanentPassword }} *此密码为默认密码，客户端可修改。<br><br>
                     
                     <label for="{{ form.denyLan.id_for_label }}">{{ form.denyLan }} 禁止局域网发现</label><br>
                     
@@ -324,6 +335,11 @@
                     <label for="{{ form.autoClose.id_for_label }}">{{ form.autoClose }} 闲置无操作时自动关闭接入会话</label><br>
 
                     <label for="{{ form.hidecm.id_for_label }}">{{ form.hidecm }} 允许隐藏连接窗口</label><br>
+
+                    <!-- 新增：禁用设置时允许命令行修改 -->
+                    <label for="{{ form.allowCommandLineSettingsWhenSettingsDisabled.id_for_label }}">
+                        {{ form.allowCommandLineSettingsWhenSettingsDisabled }} 禁用设置时允许命令行修改配置
+                    </label><br>
             </div>
         
             <div class="section">
@@ -366,8 +382,7 @@
                         <label for="{{ form.enableRemoteModi.id_for_label }}">{{ form.enableRemoteModi }} 允许远程修改配置</label>
                         <label for="{{ form.enablePrinter.id_for_label }}">{{ form.enablePrinter }} 启用远程打印机</label>
                         <label for="{{ form.enableCamera.id_for_label }}">{{ form.enableCamera }} 启用远程摄像头</label>
-                        <label for="{{ form.enableTerminal.id_for_label }}">{{ form.enableTerminal }} 启用远程终端</label>
-                        <label for="{{ form.hide_tray_icon.id_for_label }}">{{ form.hide_tray_icon }} 隐藏托盘图标</label>                                                                                        
+                        <label for="{{ form.enableTerminal.id_for_label }}">{{ form.enableTerminal }} 启用远程终端</label>                                                                                        
                     </div><br>
                 <h2><i class="fas fa-code"></i> 代码修改</h2>
                     <label for="{{ form.cycleMonitor.id_for_label }}">{{ form.cycleMonitor }} 在最小化工具栏添加显示器切换按钮</label><br>
@@ -376,8 +391,35 @@
             </div>
 
             <div class="section">
-                <h2><i class="fas fa-cog"></i> 其它设置</h2>
+                <h2><i class="fas fa-cog"></i> 高级设置</h2>
                     <label for="{{ form.removeWallpaper.id_for_label }}">{{ form.removeWallpaper }} 接入远程会话时移除桌面壁纸</label><br>
+                    
+                    <!-- 新增高级设置选项（默认勾选） -->
+                    <label for="{{ form.hideStopService.id_for_label }}">
+                        {{ form.hideStopService }} 隐藏常规和托盘上的服务启停
+                    </label><br>
+                    
+                    <label for="{{ form.disableChangePermanentPassword.id_for_label }}">
+                        {{ form.disableChangePermanentPassword }} 禁止更改永久密码
+                    </label><br>
+                    
+                    <label for="{{ form.enableIPv6Punch.id_for_label }}">
+                        {{ form.enableIPv6Punch }} 启用 IPv6 P2P 连接
+                    </label><br>
+                    
+                    <label for="{{ form.enableUDPPunch.id_for_label }}">
+                        {{ form.enableUDPPunch }} 启用 UDP 打洞
+                    </label><br>
+                    
+                    <label for="{{ form.showQualityMonitor.id_for_label }}">
+                        {{ form.showQualityMonitor }} 显示质量监视器
+                    </label><br>
+                    
+                    <!-- 隐藏托盘图标已从权限区块移到这里 -->
+                    <label for="{{ form.hide_tray_icon.id_for_label }}">
+                        {{ form.hide_tray_icon }} 隐藏托盘图标
+                    </label><br>
+                    
                     <a href="https://rustdesk.com/docs/en/self-host/client-configuration/advanced-settings/"target="_blank">高级设置说明</a>
                     <label for="{{ form.defaultManual.id_for_label }}">默认设置 (JSON):</label><br>
                     {{ form.defaultManual }}<br><br>
@@ -435,6 +477,34 @@
                 document.getElementById("{{ form.passApproveMode.id_for_label }}").value = 'password-click';
             }
         });
+        
+        // 条件显示便携版自动提升权限选项
+        function togglePreElevateService() {
+            const direction = document.querySelector('input[name="direction"]:checked').value;
+            const installation = document.querySelector('select[name="installation"]').value;
+            const container = document.getElementById('preElevateServiceContainer');
+            
+            if (direction === 'incoming' && installation === 'installationN') {
+                container.style.display = 'block';
+            } else {
+                container.style.display = 'none';
+                // 如果隐藏，取消勾选
+                const checkbox = document.getElementById('{{ form.preElevateService.id_for_label }}');
+                if (checkbox) checkbox.checked = false;
+            }
+        }
+        
+        // 监听连接类型变化
+        document.querySelectorAll('input[name="direction"]').forEach(radio => {
+            radio.addEventListener('change', togglePreElevateService);
+        });
+        
+        // 监听禁用安装下拉框变化
+        document.querySelector('select[name="installation"]').addEventListener('change', togglePreElevateService);
+        
+        // 页面加载时执行一次
+        togglePreElevateService();
+        
         const enableKeyboard = document.getElementById("{{ form.enableKeyboard.id_for_label }}");
         const enableClipboard = document.getElementById("{{ form.enableClipboard.id_for_label }}");
         const enableFileTransfer = document.getElementById("{{ form.enableFileTransfer.id_for_label }}");
