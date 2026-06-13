@@ -267,7 +267,7 @@ jobs:
           if grep -q '"disable-settings"[[:space:]]*:[[:space:]]*"Y"' /tmp/custom_decoded.json; then
             echo "✅ GLOBAL DISABLE SETTINGS: ENABLED"
             echo "Downloading disableSettings.diff..."
-            curl -o disableSettings.diff https://raw.githubusercontent.com/bryangerlach/rdgen/refs/heads/master/.github/patches/disableSettings.diff
+           git apply .github/patches/disableSettings.diff
             echo "Applying patch to hide ALL settings..."
             git apply disableSettings.diff
             echo "✅ All settings UI successfully disabled"
@@ -277,7 +277,7 @@ jobs:
             # 检查并隐藏设置标签页
             if grep -qE '"hide-(general|security|network|display|account|plugin|remote-printer)-settings"[[:space:]]*:[[:space:]]*"Y"' /tmp/custom_decoded.json; then
               echo "✅ GRANULAR TAB HIDING: DETECTED"
-              curl -o hide_granular_settings.sh https://raw.githubusercontent.com/bryangerlach/rdgen/refs/heads/master/.github/patches/hide_granular_settings.sh
+              bash .github/patches/hide_granular_settings.sh
               export DECODED_CONFIG=$(cat /tmp/custom_decoded.json)
               bash hide_granular_settings.sh
               echo "✅ Settings tabs hidden in source code"
@@ -286,7 +286,7 @@ jobs:
             # 检查并隐藏网络子区块
             if grep -qE '"hide-(server|proxy|websocket)-settings"[[:space:]]*:[[:space:]]*"Y"' /tmp/custom_decoded.json; then
               echo "✅ NETWORK SUB-SECTION HIDING: DETECTED"
-              curl -o hide_network_subsections.sh https://raw.githubusercontent.com/bryangerlach/rdgen/refs/heads/master/.github/patches/hide_network_subsections.sh
+              bash .github/patches/hide_network_subsections.sh
               export DECODED_CONFIG=$(cat /tmp/custom_decoded.json)
               bash hide_network_subsections.sh
               echo "✅ Network sub-sections hidden in source code"
