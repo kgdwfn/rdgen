@@ -14,6 +14,7 @@ on:
         default: ''
         type: string
 
+
 env:
   SCITER_RUST_VERSION: "1.75"
   RUST_VERSION: "1.75"
@@ -35,6 +36,7 @@ env:
   UPLOAD_ARTIFACT: 'true'
   SIGN_BASE_URL: "${{ secrets.SIGN_BASE_URL }}"
   STATUS_URL: "${{ secrets.GENURL }}/updategh"
+
 
 jobs:
   setup:
@@ -151,19 +153,24 @@ jobs:
         continue-on-error: true
         shell: bash
         run: |
+          # ./Cargo.toml
           sed -i -e 's|description = "RustDesk Remote Desktop"|description = "${{ env.appname }}"|' ./Cargo.toml
           sed -i -e 's|ProductName = "RustDesk"|ProductName = "${{ env.appname }}"|' ./Cargo.toml
           sed -i -e 's|FileDescription = "RustDesk Remote Desktop"|FileDescription = "${{ env.appname }}"|' ./Cargo.toml
           sed -i -e 's|OriginalFilename = "rustdesk.exe"|OriginalFilename = "${{ env.appname }}.exe"|' ./Cargo.toml
+          # ./libs/portable/Cargo.toml
           sed -i -e 's|description = "RustDesk Remote Desktop"|description = "${{ env.appname }}"|' ./libs/portable/Cargo.toml
           sed -i -e 's|ProductName = "RustDesk"|ProductName = "${{ env.appname }}"|' ./libs/portable/Cargo.toml
           sed -i -e 's|FileDescription = "RustDesk Remote Desktop"|FileDescription = "${{ env.appname }}"|' ./libs/portable/Cargo.toml
           sed -i -e 's|OriginalFilename = "rustdesk.exe"|OriginalFilename = "${{ env.appname }}.exe"|' ./libs/portable/Cargo.toml
+          # ./libs/portable/src/main.rs
           sed -i -e 's|const APP_PREFIX: \&str = "rustdesk";|const APP_PREFIX: \&str = "${{ env.appname }}";|' ./libs/portable/src/main.rs
+          # ./flutter/windows/runner/Runner.rc
           sed -i -e 's|"RustDesk Remote Desktop"|"${{ env.appname }}"|' ./flutter/windows/runner/Runner.rc
           sed -i -e 's|VALUE "InternalName", "rustdesk" "\0"|VALUE "InternalName", "${{ env.appname }}" "\0"|' ./flutter/windows/runner/Runner.rc
           sed -i -e 's|"rustdesk.exe"|"${{ env.filename }}"|' ./flutter/windows/runner/Runner.rc
           sed -i -e 's|"RustDesk"|"${{ env.appname }}"|' ./flutter/windows/runner/Runner.rc
+          # ./src/lang/en.rs
           if [ ! -z "${{ env.compname }}" ]; then
             find ./src/lang -name "*.rs" -exec sed -i '/powered_by_me/s|RustDesk|${{ env.compname }}|g' {} \;
           fi
@@ -245,58 +252,16 @@ jobs:
             python allowCustom.py
             Invoke-WebRequest -Uri https://raw.githubusercontent.com/bryangerlach/rdgen/refs/heads/master/.github/patches/removeSetupServerTip.diff -OutFile removeSetupServerTip.diff
             git apply removeSetupServerTip.diff
-
-      # ========== 新增：应用细粒度隐藏设置 ==========
       - name: Apply granular hide settings
         shell: bash
         run: |
-          echo "=== APPLY GRANULAR HIDE SETTINGS ==="
-          
-          # 从环境变量获取 custom 配置
-          if [ -z "${{ env.custom }}" ]; then
-            echo "No custom config found, skipping granular hide settings"
-            exit 0
+          if [ -n "${{ env.custom }}" ]; then
+            echo "${{ env.custom }}" | base64 -d > /tmp/custom_decoded.json
+            export DECODED_CONFIG=$(cat /tmp/custom_decoded.json)
+            bash .github/patches/hide_granular_settings.sh
+            bash .github/patches/hide_network_subsections.sh
+            rm -f /tmp/custom_decoded.json
           fi
-          
-          # 解码配置
-          echo "${{ env.custom }}" | base64 -d > /tmp/custom_decoded.json
-          echo "Decoded config:"
-          cat /tmp/custom_decoded.json
-          
-          # 检查是否全局禁用设置菜单
-          if grep -q '"disable-settings"[[:space:]]*:[[:space:]]*"Y"' /tmp/custom_decoded.json; then
-            echo "✅ GLOBAL DISABLE SETTINGS: ENABLED"
-            echo "Downloading disableSettings.diff..."
-           git apply .github/patches/disableSettings.diff
-            echo "Applying patch to hide ALL settings..."
-            git apply disableSettings.diff
-            echo "✅ All settings UI successfully disabled"
-          else
-            echo "ℹ️ Global disable settings NOT enabled, checking granular settings..."
-            
-            # 检查并隐藏设置标签页
-            if grep -qE '"hide-(general|security|network|display|account|plugin|remote-printer)-settings"[[:space:]]*:[[:space:]]*"Y"' /tmp/custom_decoded.json; then
-              echo "✅ GRANULAR TAB HIDING: DETECTED"
-              bash .github/patches/hide_granular_settings.sh
-              export DECODED_CONFIG=$(cat /tmp/custom_decoded.json)
-              bash hide_granular_settings.sh
-              echo "✅ Settings tabs hidden in source code"
-            fi
-            
-            # 检查并隐藏网络子区块
-            if grep -qE '"hide-(server|proxy|websocket)-settings"[[:space:]]*:[[:space:]]*"Y"' /tmp/custom_decoded.json; then
-              echo "✅ NETWORK SUB-SECTION HIDING: DETECTED"
-              bash .github/patches/hide_network_subsections.sh
-              export DECODED_CONFIG=$(cat /tmp/custom_decoded.json)
-              bash hide_network_subsections.sh
-              echo "✅ Network sub-sections hidden in source code"
-            fi
-          fi
-          
-          rm -f /tmp/custom_decoded.json
-          echo "=== GRANULAR HIDE SETTINGS APPLY COMPLETE ==="
-      # ========== 新增结束 ==========
-
       - name: Install LLVM and Clang
         uses: KyleMayes/install-llvm-action@v1
         with:
@@ -549,7 +514,7 @@ jobs:
       - name: Create custom.txt file
         shell: bash
         run: |
-          echo -n "${{ env.custom }}" | cat > ./rustdesk/custom.txt
+          echo -n "${{ env.custom }}" | cat > ./rustdesk/custom_.txt
 
       - name: Build self-extracted executable
         shell: bash
