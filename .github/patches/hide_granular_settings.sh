@@ -14,17 +14,14 @@
 
 echo "=== HIDING GRANULAR SETTINGS (DYNAMIC) ==="
 
-# Use Python for reliable multi-line replacement
 python3 << 'PYTHON_SCRIPT'
 import re
 import os
 import json
 
-# Read the decoded config from environment variable
 decoded_config_str = os.environ.get('DECODED_CONFIG', '{}')
 print(f"DECODED_CONFIG (first 300 chars): {decoded_config_str[:300]}...")
 
-# Parse JSON
 try:
     cleaned_str = decoded_config_str.strip()
     if cleaned_str.startswith("'") and cleaned_str.endswith("'"):
@@ -33,10 +30,8 @@ try:
     print("✅ Successfully parsed DECODED_CONFIG")
 except json.JSONDecodeError as e:
     print(f"⚠️  Warning: Could not parse DECODED_CONFIG as JSON: {e}")
-    print("Will not hide any tabs (fallback to no hiding)")
     config = {}
 
-# Determine which sections to hide based on config
 hide_general = config.get('hide-general-settings') == 'Y'
 hide_security = config.get('hide-security-settings') == 'Y'
 hide_network = config.get('hide-network-settings') == 'Y'
@@ -55,7 +50,6 @@ print(f"Hide Plugin Settings:    {hide_plugin}")
 print(f"Hide Printer Settings:   {hide_printer}")
 print("================================\n")
 
-# Function to safely modify file with backup
 def modify_file_with_backup(filepath, modifier_func):
     if not os.path.exists(filepath):
         print(f"⚠️  {filepath} not found, skipping")
@@ -67,7 +61,6 @@ def modify_file_with_backup(filepath, modifier_func):
     new_content = modifier_func(original_content)
     
     if new_content != original_content:
-        # Create backup only if changes were made
         backup_path = filepath + ".bak"
         with open(backup_path, 'w', encoding='utf-8') as f:
             f.write(original_content)
@@ -79,151 +72,69 @@ def modify_file_with_backup(filepath, modifier_func):
         print(f"ℹ️  No changes needed for {filepath}")
         return False
 
-# Process Desktop file
 desktop_file = "flutter/lib/desktop/pages/desktop_setting_page.dart"
 
 def modify_desktop_settings(content):
     modified = False
+    lines = content.split('\n')
+    new_lines = []
     
-    # Helper function to comment out a line or block
-    def hide_line(pattern, comment_prefix="// HIDDEN: "):
-        nonlocal content, modified
-        if re.search(pattern, content, re.MULTILINE):
-            lines = content.split('\n')
-            new_lines = []
-            for line in lines:
-                if re.search(pattern, line) and not line.strip().startswith('//'):
-                    new_lines.append(f"// {comment_prefix}{line}")
-                    modified = True
-                else:
-                    new_lines.append(line)
-            content = '\n'.join(new_lines)
-            return True
-        return False
+    for line in lines:
+        new_line = line
+        
+        # Hide General Settings
+        if hide_general and re.search(r'^\s*SettingsTabKey\.general,', line):
+            if not line.strip().startswith('//'):
+                new_line = f"// GENERAL SETTINGS HIDDEN: {line}"
+                modified = True
+                print("  ✓ Hid General settings")
+        
+        # Hide Security Settings
+        if hide_security and re.search(r'^\s*if\s*\([^)]*kOptionHideSecuritySetting[^)]*\)\s*SettingsTabKey\.safety,', line):
+            if not line.strip().startswith('//'):
+                new_line = f"// SECURITY SETTINGS HIDDEN: {line}"
+                modified = True
+                print("  ✓ Hid Security settings")
+        
+        # Hide Network Settings
+        if hide_network and re.search(r'^\s*if\s*\([^)]*kOptionHideNetworkSetting[^)]*\)\s*SettingsTabKey\.network,', line):
+            if not line.strip().startswith('//'):
+                new_line = f"// NETWORK SETTINGS HIDDEN: {line}"
+                modified = True
+                print("  ✓ Hid Network settings")
+        
+        # Hide Display Settings
+        if hide_display and re.search(r'^\s*if\s*\(\s*!bind\.isIncomingOnly\(\)\s*\)\s*SettingsTabKey\.display,', line):
+            if not line.strip().startswith('//'):
+                new_line = f"// DISPLAY SETTINGS HIDDEN: {line}"
+                modified = True
+                print("  ✓ Hid Display settings")
+        
+        # Hide Account Settings
+        if hide_account and re.search(r'^\s*if\s*\(\s*!bind\.isDisableAccount\(\)\s*\)\s*SettingsTabKey\.account,', line):
+            if not line.strip().startswith('//'):
+                new_line = f"// ACCOUNT SETTINGS HIDDEN: {line}"
+                modified = True
+                print("  ✓ Hid Account settings")
+        
+        # Hide Plugin Settings
+        if hide_plugin and re.search(r'^\s*if\s*\([^)]*pluginFeatureIsEnabled\(\)[^)]*\)\s*SettingsTabKey\.plugin,', line):
+            if not line.strip().startswith('//'):
+                new_line = f"// PLUGIN SETTINGS HIDDEN: {line}"
+                modified = True
+                print("  ✓ Hid Plugin settings")
+        
+        # Hide Remote Printer Settings
+        if hide_printer and re.search(r'^\s*if\s*\([^)]*kOptionHideRemotePrinterSetting[^)]*\)\s*SettingsTabKey\.printer,', line):
+            if not line.strip().startswith('//'):
+                new_line = f"// PRINTER SETTINGS HIDDEN: {line}"
+                modified = True
+                print("  ✓ Hid Printer settings")
+        
+        new_lines.append(new_line)
     
-    # 1. Hide General Settings
-    if hide_general:
-        # Pattern for SettingsTabKey.general
-        pattern = r'^\s*SettingsTabKey\.general,'
-        if re.search(pattern, content, re.MULTILINE):
-            lines = content.split('\n')
-            new_lines = []
-            for line in lines:
-                if re.search(pattern, line) and not line.strip().startswith('//'):
-                    new_lines.append(f"// GENERAL SETTINGS HIDDEN: {line}")
-                    modified = True
-                else:
-                    new_lines.append(line)
-            content = '\n'.join(new_lines)
-            print("  ✓ Hid General settings")
-        else:
-            print("  ⚠️  General settings pattern not found")
-    
-    # 2. Hide Security Settings
-    if hide_security:
-        pattern = r'^\s*if\s*\([^)]*kOptionHideSecuritySetting[^)]*\)\s*SettingsTabKey\.safety,'
-        if re.search(pattern, content, re.MULTILINE):
-            lines = content.split('\n')
-            new_lines = []
-            for line in lines:
-                if re.search(pattern, line) and not line.strip().startswith('//'):
-                    new_lines.append(f"// SECURITY SETTINGS HIDDEN: {line}")
-                    modified = True
-                else:
-                    new_lines.append(line)
-            content = '\n'.join(new_lines)
-            print("  ✓ Hid Security settings")
-        else:
-            print("  ⚠️  Security settings pattern not found")
-    
-    # 3. Hide Network Settings
-    if hide_network:
-        pattern = r'^\s*if\s*\([^)]*kOptionHideNetworkSetting[^)]*\)\s*SettingsTabKey\.network,'
-        if re.search(pattern, content, re.MULTILINE):
-            lines = content.split('\n')
-            new_lines = []
-            for line in lines:
-                if re.search(pattern, line) and not line.strip().startswith('//'):
-                    new_lines.append(f"// NETWORK SETTINGS HIDDEN: {line}")
-                    modified = True
-                else:
-                    new_lines.append(line)
-            content = '\n'.join(new_lines)
-            print("  ✓ Hid Network settings")
-        else:
-            print("  ⚠️  Network settings pattern not found")
-    
-    # 4. Hide Display Settings
-    if hide_display:
-        pattern = r'^\s*if\s*\(\s*!bind\.isIncomingOnly\(\)\s*\)\s*SettingsTabKey\.display,'
-        if re.search(pattern, content, re.MULTILINE):
-            lines = content.split('\n')
-            new_lines = []
-            for line in lines:
-                if re.search(pattern, line) and not line.strip().startswith('//'):
-                    new_lines.append(f"// DISPLAY SETTINGS HIDDEN: {line}")
-                    modified = True
-                else:
-                    new_lines.append(line)
-            content = '\n'.join(new_lines)
-            print("  ✓ Hid Display settings")
-        else:
-            print("  ⚠️  Display settings pattern not found")
-    
-    # 5. Hide Account Settings
-    if hide_account:
-        pattern = r'^\s*if\s*\(\s*!bind\.isDisableAccount\(\)\s*\)\s*SettingsTabKey\.account,'
-        if re.search(pattern, content, re.MULTILINE):
-            lines = content.split('\n')
-            new_lines = []
-            for line in lines:
-                if re.search(pattern, line) and not line.strip().startswith('//'):
-                    new_lines.append(f"// ACCOUNT SETTINGS HIDDEN: {line}")
-                    modified = True
-                else:
-                    new_lines.append(line)
-            content = '\n'.join(new_lines)
-            print("  ✓ Hid Account settings")
-        else:
-            print("  ⚠️  Account settings pattern not found")
-    
-    # 6. Hide Plugin Settings
-    if hide_plugin:
-        pattern = r'^\s*if\s*\([^)]*pluginFeatureIsEnabled\(\)[^)]*\)\s*SettingsTabKey\.plugin,'
-        if re.search(pattern, content, re.MULTILINE):
-            lines = content.split('\n')
-            new_lines = []
-            for line in lines:
-                if re.search(pattern, line) and not line.strip().startswith('//'):
-                    new_lines.append(f"// PLUGIN SETTINGS HIDDEN: {line}")
-                    modified = True
-                else:
-                    new_lines.append(line)
-            content = '\n'.join(new_lines)
-            print("  ✓ Hid Plugin settings")
-        else:
-            print("  ⚠️  Plugin settings pattern not found")
-    
-    # 7. Hide Remote Printer Settings
-    if hide_printer:
-        pattern = r'^\s*if\s*\([^)]*kOptionHideRemotePrinterSetting[^)]*\)\s*SettingsTabKey\.printer,'
-        if re.search(pattern, content, re.MULTILINE):
-            lines = content.split('\n')
-            new_lines = []
-            for line in lines:
-                if re.search(pattern, line) and not line.strip().startswith('//'):
-                    new_lines.append(f"// PRINTER SETTINGS HIDDEN: {line}")
-                    modified = True
-                else:
-                    new_lines.append(line)
-            content = '\n'.join(new_lines)
-            print("  ✓ Hid Printer settings")
-        else:
-            print("  ⚠️  Printer settings pattern not found")
-    
-    return content
+    return '\n'.join(new_lines)
 
-# Apply modifications
 print(f"Processing {desktop_file}...")
 if os.path.exists(desktop_file):
     modify_file_with_backup(desktop_file, modify_desktop_settings)
