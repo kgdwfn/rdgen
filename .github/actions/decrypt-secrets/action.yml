@@ -39,6 +39,7 @@ runs:
             with zf.open('secrets.json') as f:
                 secrets = json.load(f)
 
+        # 写入 GITHUB_ENV 时使用 UTF-8 编码打开文件（中文密钥）
         with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as env_file:
             for key, value in secrets.items():
                 if value:
