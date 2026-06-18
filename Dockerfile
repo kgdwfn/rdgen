@@ -1,4 +1,4 @@
-FROM python:3.13-alpine
+FROM docker.1ms.run/python:3.13-alpine
 
 RUN adduser -D user
 USER user
