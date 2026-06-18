@@ -305,6 +305,17 @@ jobs:
           # ./flutter/pubspec.yaml
           #sed -i '/intl:/a \ \ archive: ^3.6.1' ./flutter/pubspec.yaml
 
+      - name: Hide Account Settings
+        shell: bash
+        run: |
+          if [ "${{ env.hideAccountSettings }}" == "true" ]; then
+            echo "✅ Hiding Account Settings tab via sed"
+            sed -i 's/^\(\s*\)if\s*(\s*!bind\.isDisableAccount()\s*)\s*SettingsTabKey\.account,/\1\/\/ ACCOUNT SETTINGS HIDDEN: &/' \
+              flutter/lib/desktop/pages/desktop_setting_page.dart || true
+          else
+            echo "ℹ️ Account Settings will be shown (not hidden)"
+          fi
+
       - name: allow custom.txt
         uses: nick-fields/retry@v3
         with:
@@ -669,6 +680,9 @@ jobs:
       - name: Build self-extracted executable
         shell: bash
         if: env.UPLOAD_ARTIFACT == 'true'
+        env:
+          PYTHONIOENCODING: utf-8
+          PYTHONUTF8: 1
         run: |
           mv "./rustdesk/rustdesk.exe" "./rustdesk/${{ env.appname }}.exe" || echo "rustdesk.exe"
           sed -i '/dpiAware/d' res/manifest.xml
@@ -686,6 +700,14 @@ jobs:
         continue-on-error: true
         if: env.UPLOAD_ARTIFACT == 'true'
         run: |
+          # Chinese (and other non-ASCII) app names need a UTF-8 codepage in the WiX sources
+          Get-ChildItem -Path "./res/msi" -Recurse -Include "*.wxs", "*.wxl" | ForEach-Object {
+            $content = Get-Content $_.FullName -Raw -Encoding UTF8
+            if ($content -match 'Codepage="1252"') {
+              $content = $content -replace 'Codepage="1252"', 'Codepage="65001"'
+              Set-Content $_.FullName -Value $content -Encoding UTF8 -NoNewline
+            }
+          }
           $myappname = "${{ env.appname }}" -replace '\s','_'
           cp "rustdesk/${{ env.appname }}.exe" "rustdesk/${myappname}.exe" -ErrorAction SilentlyContinue
           pushd ./res/msi
@@ -695,6 +717,7 @@ jobs:
           cp ./Package/bin/x64/Release/en-us/Package.msi ../../SignOutput/rustdesk-latest.msi
           mv ./Package/bin/x64/Release/en-us/Package.msi ../../SignOutput/rustdesk.msi
           sha256sum ../../SignOutput/rustdesk.msi
+          popd
 
       - name: zip exe and msi
         continue-on-error: true
@@ -737,7 +760,7 @@ jobs:
         if: ${{ env.rdgen == 'true' }}
         uses: nick-fields/retry@v3
         with:
-          timeout_minutes: 10
+          timeout_minutes: 15
           max_attempts: 3
           retry_wait_seconds: 15
           shell: bash
@@ -749,7 +772,7 @@ jobs:
         if: ${{ env.rdgen == 'false' }}
         uses: nick-fields/retry@v3
         with:
-          timeout_minutes: 10
+          timeout_minutes: 15
           max_attempts: 3
           retry_wait_seconds: 15
           shell: bash
