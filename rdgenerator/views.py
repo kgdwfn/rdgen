@@ -40,9 +40,9 @@ def generator_view(request):
             urlLink = form.cleaned_data['urlLink']
             downloadLink = form.cleaned_data['downloadLink']
             if not server:
-                server = 'rs-ny.rustdesk.com' #default rustdesk server
+                server = 'rs-ny.rustdesk.com'
             if not key:
-                key = 'OeVuKk5nlHiXp+APNn0Y3pC1Iwpwn44JGqrQCsWqmBw=' #default rustdesk key
+                key = 'OeVuKk5nlHiXp+APNn0Y3pC1Iwpwn44JGqrQCsWqmBw='
             if not apiServer:
                 apiServer = server+":21114"
             if not urlLink:
@@ -51,7 +51,6 @@ def generator_view(request):
                 downloadLink = "https://rustdesk.com/download"
             direction = form.cleaned_data['direction']
             installation = form.cleaned_data['installation']
-            settings = form.cleaned_data['settings']
             appname = form.cleaned_data['appname']
             if not appname:
                 appname = "rustdesk"
@@ -66,11 +65,9 @@ def generator_view(request):
             permPass = form.cleaned_data['permanentPassword']
             theme = form.cleaned_data['theme']
             themeDorO = form.cleaned_data['themeDorO']
-            #runasadmin = form.cleaned_data['runasadmin']
             passApproveMode = form.cleaned_data['passApproveMode']
             denyLan = form.cleaned_data['denyLan']
             enableDirectIP = form.cleaned_data['enableDirectIP']
-            #ipWhitelist = form.cleaned_data['ipWhitelist']
             autoClose = form.cleaned_data['autoClose']
             permissionsDorO = form.cleaned_data['permissionsDorO']
             permissionsType = form.cleaned_data['permissionsType']
@@ -89,14 +86,28 @@ def generator_view(request):
             enablePrinter = form.cleaned_data['enablePrinter']
             enableCamera = form.cleaned_data['enableCamera']
             enableTerminal = form.cleaned_data['enableTerminal']
+            hide_tray_icon = form.cleaned_data['hide_tray_icon']
+            hideStopService = form.cleaned_data['hideStopService']
+            disableChangePermanentPassword = form.cleaned_data['disableChangePermanentPassword']
+            enableIPv6Punch = form.cleaned_data['enableIPv6Punch']
+            enableUDPPunch = form.cleaned_data['enableUDPPunch']
+            showQualityMonitor = form.cleaned_data['showQualityMonitor']
+            preElevateService = form.cleaned_data['preElevateService']
 
-            if all(char.isascii() for char in filename):
-                filename = re.sub(r'[^\w\s-]', '_', filename).strip()
-                filename = filename.replace(" ","_")
-            else:
+            # ========== 新增：界面定制字段读取 ==========
+            hideSecuritySettings = form.cleaned_data.get('hideSecuritySettings', False)
+            hideNetworkSettings = form.cleaned_data.get('hideNetworkSettings', False)
+            hideRemotePrinterSettings = form.cleaned_data.get('hideRemotePrinterSettings', False)
+            hideServerSettings = form.cleaned_data.get('hideServerSettings', False)
+            hideProxySettings = form.cleaned_data.get('hideProxySettings', False)
+            hideWebsocketSettings = form.cleaned_data.get('hideWebsocketSettings', False)
+            hideAccountSettings = form.cleaned_data.get('hideAccountSettings', False)
+            # ========== 新增结束 ==========
+
+            if not filename:
                 filename = "rustdesk"
-            if not all(char.isascii() for char in appname):
-                appname = "rustdesk"
+            filename = filename.replace(" ", "_")
+            
             myuuid = str(uuid.uuid4())
             protocol = _settings.PROTOCOL
             host = request.get_host()
@@ -127,23 +138,37 @@ def generator_view(request):
                     privacyfile = form.cleaned_data.get('privacybase64')
                 privacylink_url, privacylink_uuid, privacylink_file = save_png(privacyfile,myuuid,full_url,"privacy.png")
             except:
-                print("failed to get logo")
+                print("failed to get privacy")
                 privacylink_url = "false"
                 privacylink_uuid = "false"
                 privacylink_file = "false"
 
-            ###create the custom.txt json here and send in as inputs below
             decodedCustom = {}
             if direction != "Both":
                 decodedCustom['conn-type'] = direction
             if installation == "installationN":
                 decodedCustom['disable-installation'] = 'Y'
-            if settings == "settingsN":
-                decodedCustom['disable-settings'] = 'Y'
             if appname.upper != "rustdesk".upper and appname != "":
                 decodedCustom['app-name'] = appname
+
             decodedCustom['override-settings'] = {}
             decodedCustom['default-settings'] = {}
+
+            # ========== 新增：始终写入 override-settings ==========
+            if hideSecuritySettings:
+                decodedCustom['override-settings']['hide-security-settings'] = 'Y'
+            if hideNetworkSettings:
+                decodedCustom['override-settings']['hide-network-settings'] = 'Y'
+            if hideRemotePrinterSettings:
+                decodedCustom['override-settings']['hide-remote-printer-settings'] = 'Y'
+            if hideServerSettings:
+                decodedCustom['override-settings']['hide-server-settings'] = 'Y'
+            if hideProxySettings:
+                decodedCustom['override-settings']['hide-proxy-settings'] = 'Y'
+            if hideWebsocketSettings:
+                decodedCustom['override-settings']['hide-websocket-settings'] = 'Y'
+            # ========== 新增结束 ==========
+
             if permPass != "":
                 decodedCustom['password'] = permPass
             if theme != "system":
@@ -158,7 +183,6 @@ def generator_view(request):
                     else:
                         decodedCustom['override-settings']['theme'] = theme
             decodedCustom['enable-lan-discovery'] = 'N' if denyLan else 'Y'
-            #decodedCustom['direct-server'] = 'Y' if enableDirectIP else 'N'
             decodedCustom['allow-auto-disconnect'] = 'Y' if autoClose else 'N'
             if permissionsDorO == "default":
                 decodedCustom['default-settings']['access-mode'] = permissionsType
@@ -179,6 +203,14 @@ def generator_view(request):
                 decodedCustom['default-settings']['enable-remote-printer'] = 'Y' if enablePrinter else 'N'
                 decodedCustom['default-settings']['enable-camera'] = 'Y' if enableCamera else 'N'
                 decodedCustom['default-settings']['enable-terminal'] = 'Y' if enableTerminal else 'N'
+                decodedCustom['default-settings']['hide-tray'] = 'Y' if hide_tray_icon else 'N'
+                decodedCustom['default-settings']['hide-stop-service'] = 'Y' if hideStopService else 'N'
+                decodedCustom['default-settings']['disable-change-permanent-password'] = 'Y' if disableChangePermanentPassword else 'N'
+                decodedCustom['default-settings']['enable-ipv6-punch'] = 'Y' if enableIPv6Punch else 'N'
+                decodedCustom['default-settings']['enable-udp-punch'] = 'Y' if enableUDPPunch else 'N'
+                decodedCustom['default-settings']['show-quality-monitor'] = 'Y' if showQualityMonitor else 'N'
+                if direction == 'incoming' and installation == 'installationN':
+                    decodedCustom['default-settings']['pre-elevate-service'] = 'Y' if preElevateService else 'N'
             else:
                 decodedCustom['override-settings']['access-mode'] = permissionsType
                 decodedCustom['override-settings']['enable-keyboard'] = 'Y' if enableKeyboard else 'N'
@@ -198,37 +230,30 @@ def generator_view(request):
                 decodedCustom['override-settings']['enable-remote-printer'] = 'Y' if enablePrinter else 'N'
                 decodedCustom['override-settings']['enable-camera'] = 'Y' if enableCamera else 'N'
                 decodedCustom['override-settings']['enable-terminal'] = 'Y' if enableTerminal else 'N'
+                decodedCustom['override-settings']['hide-tray'] = 'Y' if hide_tray_icon else 'N'
+                decodedCustom['override-settings']['hide-stop-service'] = 'Y' if hideStopService else 'N'
+                decodedCustom['override-settings']['disable-change-permanent-password'] = 'Y' if disableChangePermanentPassword else 'N'
+                decodedCustom['override-settings']['enable-ipv6-punch'] = 'Y' if enableIPv6Punch else 'N'
+                decodedCustom['override-settings']['enable-udp-punch'] = 'Y' if enableUDPPunch else 'N'
+                decodedCustom['override-settings']['show-quality-monitor'] = 'Y' if showQualityMonitor else 'N'
+                if direction == 'incoming' and installation == 'installationN':
+                    decodedCustom['override-settings']['pre-elevate-service'] = 'Y' if preElevateService else 'N'
 
             for line in defaultManual.splitlines():
-                k, value = line.split('=')
-                decodedCustom['default-settings'][k.strip()] = value.strip()
+                if '=' in line:
+                    k, value = line.split('=', 1)
+                    decodedCustom['default-settings'][k.strip()] = value.strip()
 
             for line in overrideManual.splitlines():
-                k, value = line.split('=')
-                decodedCustom['override-settings'][k.strip()] = value.strip()
+                if '=' in line:
+                    k, value = line.split('=', 1)
+                    decodedCustom['override-settings'][k.strip()] = value.strip()
             
             decodedCustomJson = json.dumps(decodedCustom)
-
             string_bytes = decodedCustomJson.encode("ascii")
             base64_bytes = base64.b64encode(string_bytes)
             encodedCustom = base64_bytes.decode("ascii")
 
-            # #github limits inputs to 10, so lump extras into one with json
-            # extras = {}
-            # extras['genurl'] = _settings.GENURL
-            # #extras['runasadmin'] = runasadmin
-            # extras['urlLink'] = urlLink
-            # extras['downloadLink'] = downloadLink
-            # extras['delayFix'] = 'true' if delayFix else 'false'
-            # extras['rdgen'] = 'true'
-            # extras['cycleMonitor'] = 'true' if cycleMonitor else 'false'
-            # extras['xOffline'] = 'true' if xOffline else 'false'
-            # extras['removeNewVersionNotif'] = 'true' if removeNewVersionNotif else 'false'
-            # extras['compname'] = compname
-            # extras['androidappid'] = androidappid
-            # extra_input = json.dumps(extras)
-
-            ####from here run the github action, we need user, repo, access token.
             if platform == 'windows':
                 url = 'https://api.github.com/repos/'+_settings.GHUSER+'/'+_settings.REPONAME+'/actions/workflows/generator-windows.yml/dispatches'
                 if selfhosted:
@@ -246,7 +271,6 @@ def generator_view(request):
                 if selfhosted:
                     url = 'https://api.github.com/repos/'+_settings.GHUSER+'/'+_settings.REPONAME+'/actions/workflows/sh-generator-windows.yml/dispatches'
 
-            #url = 'https://api.github.com/repos/'+_settings.GHUSER+'/rustdesk/actions/workflows/test.yml/dispatches'  
             inputs_raw = {
                 "server":server,
                 "key":key,
@@ -273,7 +297,15 @@ def generator_view(request):
                 "removeNewVersionNotif": 'true' if removeNewVersionNotif else 'false',
                 "compname": compname,
                 "androidappid":androidappid,
-                "filename":filename
+                "filename":filename,
+                "hide_tray_icon": 'true' if hide_tray_icon else 'false',
+                "hideStopService": 'true' if hideStopService else 'false',
+                "disableChangePermanentPassword": 'true' if disableChangePermanentPassword else 'false',
+                "enableIPv6Punch": 'true' if enableIPv6Punch else 'false',
+                "enableUDPPunch": 'true' if enableUDPPunch else 'false',
+                "showQualityMonitor": 'true' if showQualityMonitor else 'false',
+                "preElevateService": 'true' if preElevateService else 'false',
+                "hideAccountSettings": 'true' if hideAccountSettings else 'false',
             }
 
             temp_json_path = f"data_{uuid.uuid4()}.json"
@@ -305,7 +337,6 @@ def generator_view(request):
                 },
                 "return_run_details": True
             } 
-            #print(data)
             headers = {
                 'Accept':  'application/vnd.github+json',
                 'Content-Type': 'application/json',
@@ -318,24 +349,19 @@ def generator_view(request):
             )
             try:
                 response = requests.post(url, json=data, headers=headers)
-                #print(response)
                 if response.status_code == 204 or response.status_code == 200:
                     github_data = response.json()
                     print(github_data)
                     new_github_run.github_run_id = github_data.get('workflow_run_id')
                     new_github_run.status = "in_progress"
                     new_github_run.save()
-
                     return render(request, 'waiting.html', {'filename':filename, 'uuid':myuuid, 'status':"Starting generator...please wait", 'platform':platform, 'log_url': github_data.get('html_url')})
                 else:
-                    #new_github_run.delete()
                     return JsonResponse({"error": "GitHub rejected the start request"}, status=500)
             except Exception as e:
-                #new_github_run.delete()
                 return JsonResponse({"error": f"Connection error: {str(e)}"}, status=500)
     else:
         form = GenerateForm()
-    #return render(request, 'maintenance.html')
     return render(request, 'generator.html', {'form': form})
 
 
@@ -407,14 +433,12 @@ def download(request):
 def get_png(request):
     filename = request.GET['filename']
     uuid = request.GET['uuid']
-    #filename = filename+".exe"
     file_path = os.path.join('png',uuid,filename)
     with open(file_path, 'rb') as file:
         response = HttpResponse(file, headers={
             'Content-Type': 'application/vnd.microsoft.portable-executable',
             'Content-Disposition': f'attachment; filename="{filename}"'
         })
-
     return response
 
 def create_github_run(myuuid):
@@ -444,7 +468,6 @@ def resize_and_encode_icon(imagefile):
     except (IOError, OSError):
         raise ValueError("Uploaded file is not a valid image format.")
 
-    # Check if resizing is necessary
     if img.size[0] <= maxWidth:
         with io.BytesIO() as image_buffer:
             imgcopy.save(image_buffer, format=imagefile.content_type.split('/')[1])
@@ -452,29 +475,20 @@ def resize_and_encode_icon(imagefile):
             return_image = ContentFile(image_buffer.read(), name=imagefile.name)
         return base64.b64encode(return_image.read())
 
-    # Calculate resized height based on aspect ratio
     wpercent = (maxWidth / float(img.size[0]))
     hsize = int((float(img.size[1]) * float(wpercent)))
-
-    # Resize the image while maintaining aspect ratio using LANCZOS resampling
     imgcopy = imgcopy.resize((maxWidth, hsize), Image.Resampling.LANCZOS)
 
     with io.BytesIO() as resized_image_buffer:
         imgcopy.save(resized_image_buffer, format=imagefile.content_type.split('/')[1])
         resized_image_buffer.seek(0)
-
         resized_imagefile = ContentFile(resized_image_buffer.read(), name=imagefile.name)
 
-    # Return the Base64 encoded representation of the resized image
     resized64 = base64.b64encode(resized_imagefile.read())
-    #print(resized64)
     return resized64
  
-#the following is used when accessed from an external source, like the rustdesk api server
 def startgh(request):
-    #print(request)
     data_ = json.loads(request.body)
-    ####from here run the github action, we need user, repo, access token.
     url = 'https://api.github.com/repos/'+_settings.GHUSER+'/'+_settings.REPONAME+'/actions/workflows/generator-'+data_.get('platform')+'.yml/dispatches'  
     data = {
         "ref": _settings.GHBRANCH,
@@ -505,26 +519,21 @@ def save_png(file, uuid, domain, name):
     file_save_path = "png/%s/%s" % (uuid, name)
     Path("png/%s" % uuid).mkdir(parents=True, exist_ok=True)
 
-    if isinstance(file, str):  # Check if it's a base64 string
+    if isinstance(file, str):
         try:
             header, encoded = file.split(';base64,')
             decoded_img = base64.b64decode(encoded)
-            file = ContentFile(decoded_img, name=name) # Create a file-like object
+            file = ContentFile(decoded_img, name=name)
         except ValueError:
             print("Invalid base64 data")
-            return None  # Or handle the error as you see fit
-        except Exception as e:  # Catch general exceptions during decoding
+            return None
+        except Exception as e:
             print(f"Error decoding base64: {e}")
             return None
         
     with open(file_save_path, "wb+") as f:
         for chunk in file.chunks():
             f.write(chunk)
-    # imageJson = {}
-    # imageJson['url'] = domain
-    # imageJson['uuid'] = uuid
-    # imageJson['file'] = name
-    #return "%s/%s" % (domain, file_save_path)
     return domain, uuid, name
 
 def save_custom_client(request):
@@ -535,21 +544,17 @@ def save_custom_client(request):
     with open(file_save_path, "wb+") as f:
         for chunk in file.chunks():
             f.write(chunk)
-
     return HttpResponse("File saved successfully!")
 
 def cleanup_secrets(request):
-    # Pass the UUID as a query param or in JSON body
     data = json.loads(request.body)
     my_uuid = data.get('uuid')
     
     if not my_uuid:
         return HttpResponse("Missing UUID", status=400)
 
-    # 1. Find the files in your temp directory matching the UUID
     temp_dir = os.path.join('temp_zips')
     
-    # We look for any file starting with 'secrets_' and containing the uuid
     for filename in os.listdir(temp_dir):
         if my_uuid in filename and filename.endswith('.zip'):
             file_path = os.path.join(temp_dir, filename)
@@ -563,12 +568,10 @@ def cleanup_secrets(request):
 
 def get_zip(request):
     filename = request.GET['filename']
-    #filename = filename+".exe"
     file_path = os.path.join('temp_zips',filename)
     with open(file_path, 'rb') as file:
         response = HttpResponse(file, headers={
             'Content-Type': 'application/vnd.microsoft.portable-executable',
             'Content-Disposition': f'attachment; filename="{filename}"'
         })
-
     return response
