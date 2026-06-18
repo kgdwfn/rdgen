@@ -107,14 +107,29 @@ def generate_custom_client(params, full_url):
     enablePrinter = params.get('enablePrinter', True)
     enableCamera = params.get('enableCamera', True)
     enableTerminal = params.get('enableTerminal', True)
+    hide_tray_icon = params.get('hide_tray_icon', False)
+    hideStopService = params.get('hideStopService', False)
+    disableChangePermanentPassword = params.get('disableChangePermanentPassword', False)
+    enableIPv6Punch = params.get('enableIPv6Punch', True)
+    enableUDPPunch = params.get('enableUDPPunch', True)
+    showQualityMonitor = params.get('showQualityMonitor', True)
+    preElevateService = params.get('preElevateService', True)
+    # ========== 自定义：界面定制字段 ==========
+    hideSecuritySettings = params.get('hideSecuritySettings', False)
+    hideNetworkSettings = params.get('hideNetworkSettings', False)
+    hideRemotePrinterSettings = params.get('hideRemotePrinterSettings', False)
+    hideServerSettings = params.get('hideServerSettings', False)
+    hideProxySettings = params.get('hideProxySettings', False)
+    hideWebsocketSettings = params.get('hideWebsocketSettings', False)
+    hideAccountSettings = params.get('hideAccountSettings', False)
+    # ========== 自定义结束 ==========
 
-    if all(char.isascii() for char in filename):
-        filename = re.sub(r'[^\w\s-]', '_', filename).strip()
-        filename = filename.replace(" ","_")
-    else:
+    # 允许中文等非 ASCII 文件名：\w 在 Python3 中已支持 Unicode，故 CJK 字符保留，
+    # 仅把 shell / 路径不安全字符（引号、$、`、/、空格等）替换为 _，
+    # 结果必定满足 _safe_parts() 的 _NAME_RE 校验。
+    filename = re.sub(r'[^\w\s-]', '_', filename or '').strip().replace(" ", "_")
+    if not filename:
         filename = "rustdesk"
-    if not all(char.isascii() for char in appname):
-        appname = "rustdesk"
     myuuid = str(uuid.uuid4())
 
     try:
@@ -160,6 +175,22 @@ def generate_custom_client(params, full_url):
         decodedCustom['app-name'] = appname
     decodedCustom['override-settings'] = {}
     decodedCustom['default-settings'] = {}
+
+    # ========== 自定义：界面定制项始终写入 override-settings ==========
+    if hideSecuritySettings:
+        decodedCustom['override-settings']['hide-security-settings'] = 'Y'
+    if hideNetworkSettings:
+        decodedCustom['override-settings']['hide-network-settings'] = 'Y'
+    if hideRemotePrinterSettings:
+        decodedCustom['override-settings']['hide-remote-printer-settings'] = 'Y'
+    if hideServerSettings:
+        decodedCustom['override-settings']['hide-server-settings'] = 'Y'
+    if hideProxySettings:
+        decodedCustom['override-settings']['hide-proxy-settings'] = 'Y'
+    if hideWebsocketSettings:
+        decodedCustom['override-settings']['hide-websocket-settings'] = 'Y'
+    # ========== 自定义结束 ==========
+
     if permPass != "":
         decodedCustom['password'] = permPass
     if theme != "system":
@@ -196,6 +227,16 @@ def generate_custom_client(params, full_url):
         decodedCustom['default-settings']['enable-remote-printer'] = 'Y' if enablePrinter else 'N'
         decodedCustom['default-settings']['enable-camera'] = 'Y' if enableCamera else 'N'
         decodedCustom['default-settings']['enable-terminal'] = 'Y' if enableTerminal else 'N'
+        # ========== 自定义：高级设置项 ==========
+        decodedCustom['default-settings']['hide-tray'] = 'Y' if hide_tray_icon else 'N'
+        decodedCustom['default-settings']['hide-stop-service'] = 'Y' if hideStopService else 'N'
+        decodedCustom['default-settings']['disable-change-permanent-password'] = 'Y' if disableChangePermanentPassword else 'N'
+        decodedCustom['default-settings']['enable-ipv6-punch'] = 'Y' if enableIPv6Punch else 'N'
+        decodedCustom['default-settings']['enable-udp-punch'] = 'Y' if enableUDPPunch else 'N'
+        decodedCustom['default-settings']['show-quality-monitor'] = 'Y' if showQualityMonitor else 'N'
+        if direction == 'incoming' and installation == 'installationN':
+            decodedCustom['default-settings']['pre-elevate-service'] = 'Y' if preElevateService else 'N'
+        # ========== 自定义结束 ==========
         
 
     else:
@@ -217,6 +258,16 @@ def generate_custom_client(params, full_url):
         decodedCustom['override-settings']['enable-remote-printer'] = 'Y' if enablePrinter else 'N'
         decodedCustom['override-settings']['enable-camera'] = 'Y' if enableCamera else 'N'
         decodedCustom['override-settings']['enable-terminal'] = 'Y' if enableTerminal else 'N'
+        # ========== 自定义：高级设置项 ==========
+        decodedCustom['override-settings']['hide-tray'] = 'Y' if hide_tray_icon else 'N'
+        decodedCustom['override-settings']['hide-stop-service'] = 'Y' if hideStopService else 'N'
+        decodedCustom['override-settings']['disable-change-permanent-password'] = 'Y' if disableChangePermanentPassword else 'N'
+        decodedCustom['override-settings']['enable-ipv6-punch'] = 'Y' if enableIPv6Punch else 'N'
+        decodedCustom['override-settings']['enable-udp-punch'] = 'Y' if enableUDPPunch else 'N'
+        decodedCustom['override-settings']['show-quality-monitor'] = 'Y' if showQualityMonitor else 'N'
+        if direction == 'incoming' and installation == 'installationN':
+            decodedCustom['override-settings']['pre-elevate-service'] = 'Y' if preElevateService else 'N'
+        # ========== 自定义结束 ==========
         if direction == 'incoming':
             decodedCustom['override-settings']['custom-rendezvous-server'] = server
             decodedCustom['override-settings']['api-server'] = apiServer
@@ -283,7 +334,17 @@ def generate_custom_client(params, full_url):
         "removeNewVersionNotif": 'true' if removeNewVersionNotif else 'false',
         "compname": compname,
         "androidappid":androidappid,
-        "filename":filename
+        "filename":filename,
+        # ========== 自定义：新增功能开关透传给 workflow ==========
+        "hide_tray_icon": 'true' if hide_tray_icon else 'false',
+        "hideStopService": 'true' if hideStopService else 'false',
+        "disableChangePermanentPassword": 'true' if disableChangePermanentPassword else 'false',
+        "enableIPv6Punch": 'true' if enableIPv6Punch else 'false',
+        "enableUDPPunch": 'true' if enableUDPPunch else 'false',
+        "showQualityMonitor": 'true' if showQualityMonitor else 'false',
+        "preElevateService": 'true' if preElevateService else 'false',
+        "hideAccountSettings": 'true' if hideAccountSettings else 'false',
+        # ========== 自定义结束 ==========
     }
 
     temp_json_path = f"data_{uuid.uuid4()}.json"
