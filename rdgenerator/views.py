@@ -124,12 +124,13 @@ def generate_custom_client(params, full_url):
     hideAccountSettings = params.get('hideAccountSettings', False)
     # ========== 自定义结束 ==========
 
-    # 允许中文等非 ASCII 文件名：\w 在 Python3 中已支持 Unicode，故 CJK 字符保留，
-    # 仅把 shell / 路径不安全字符（引号、$、`、/、空格等）替换为 _，
-    # 结果必定满足 _safe_parts() 的 _NAME_RE 校验。
-    filename = re.sub(r'[^\w\s-]', '_', filename or '').strip().replace(" ", "_")
-    if not filename:
+    if all(char.isascii() for char in filename):
+        filename = re.sub(r'[^\w\s-]', '_', filename).strip()
+        filename = filename.replace(" ","_")
+    else:
         filename = "rustdesk"
+    if not all(char.isascii() for char in appname):
+        appname = "rustdesk"
     myuuid = str(uuid.uuid4())
 
     try:
