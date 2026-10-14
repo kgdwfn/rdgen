@@ -471,7 +471,7 @@ def generator_view(request):
                 return render(request, 'waiting.html', {
                     'filename': result['filename'],
                     'uuid': result['uuid'],
-                    'status': "Starting generator...please wait",
+                    'status': "正在启动构建，请稍候…",
                     'platform': result['platform'],
                     'log_url': result['log_url']
                 })

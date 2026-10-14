@@ -1,7 +1,8 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
-    <title id="pageTitle">Generating Build</title>
+    <meta charset="utf-8">
+    <title id="pageTitle">正在生成构建</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
@@ -41,6 +42,7 @@
             background: rgba(255,255,255,0.7);
             padding: 10px;
             border-radius: 8px;
+            display: none;
         }
         .loading-spinner {
             border: 4px solid #f3f3f3;
@@ -62,12 +64,21 @@
             border-radius: 5px;
             overflow: hidden;
             margin: 20px auto;
+            position: relative;
         }
+        /* 不确定态进度条：GitHub 只返回构建状态、不给百分比，故用循环流动表示"进行中" */
         .progress-bar-fill {
-            width: 0%;
+            width: 40%;
             height: 100%;
-            background-color: #3498db;
-            transition: width 0.5s ease-in-out;
+            background: linear-gradient(90deg, #3498db, #6dd5fa, #3498db);
+            border-radius: 5px;
+            position: absolute;
+            left: 0;
+            animation: indeterminate 1.8s cubic-bezier(0.65, 0.05, 0.36, 1) infinite;
+        }
+        @keyframes indeterminate {
+            0%   { left: -40%; }
+            100% { left: 100%; }
         }
         .log-container {
             margin-top: 30px;
@@ -157,29 +168,29 @@
     </svg>
 
     <div>
-        <h2 class="loading-text">Build in Progress</h2>
+        <h2 class="loading-text">构建进行中</h2>
         <div class="loading-spinner"></div>
         <div class="progress-bar">
             <div id="progressBarFill" class="progress-bar-fill"></div>
         </div>
-        <p class="status-text">This can take 30-45 minutes. You can leave this page open or come back later.</p>
-        <p class="status-text">Status: <span id="statusText">{{status}}</span></p>
+        <p class="status-text">整个过程大约需要 30–45 分钟。您可以保持此页面打开，或稍后再来查看。</p>
+        <p class="status-text">状态：<span id="statusText">{{status}}</span></p>
 
         <div class="log-container">
-            <p style="margin: 0 0 8px 0; color: #888;">Technical View</p>
+            <p style="margin: 0 0 8px 0; color: #888;">技术详情</p>
             <a href="{{ log_url }}" target="_blank" class="log-link">
-                View GitHub Action Logs 
+                查看 GitHub Actions 构建日志
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
             </a>
         </div>
     </div>
 
     <div id="macosNote" class="macos-note">
-        Note for macOS users: Generating an executable may require additional steps or permissions.
+        macOS 用户提示：生成可执行文件可能需要额外的步骤或权限。
     </div>
 
     <script>
-        // Detect platform and update logo, title, and notes
+        // 识别平台，更新图标、标题与提示
         function updatePlatformUI() {
             const platform = '{{platform}}'.toLowerCase();
             const platformLogos = {
@@ -190,37 +201,60 @@
                 'android': document.getElementById('androidLogo')
             };
 
-            // Reset all logos
+            // 先隐藏所有图标
             Object.values(platformLogos).forEach(logo => logo.style.display = 'none');
 
-            // Set appropriate logo and title
+            // 按平台设置图标与标题
             if (platform === 'macos') {
-                document.getElementById('pageTitle').textContent = 'Generating MacOS Build';
+                document.getElementById('pageTitle').textContent = '正在生成 macOS 构建';
                 platformLogos.macos.style.display = 'block';
                 document.getElementById('macosNote').style.display = 'block';
-            } else if (platform === 'windows' | platform === 'windows-x86') {
-                document.getElementById('pageTitle').textContent = 'Generating Windows Build';
+            } else if (platform === 'windows' || platform === 'windows-x86') {
+                document.getElementById('pageTitle').textContent = '正在生成 Windows 构建';
                 platformLogos.windows.style.display = 'block';
             } else if (platform === 'linux') {
-                document.getElementById('pageTitle').textContent = 'Generating Linux Build';
+                document.getElementById('pageTitle').textContent = '正在生成 Linux 构建';
                 platformLogos.linux.style.display = 'block';
             } else if (platform === 'android') {
-                document.getElementById('pageTitle').textContent = 'Generating Android Build';
+                document.getElementById('pageTitle').textContent = '正在生成 Android 构建';
                 platformLogos.android.style.display = 'block';
             }
         }
 
-        // Simulate progress (replace with actual progress tracking if possible)
+        // 将 GitHub 返回的构建状态映射为中文
+        const STATUS_ZH = {
+            'queued': '排队中',
+            'requested': '等待调度',
+            'waiting': '等待调度',
+            'pending': '等待中',
+            'in_progress': '构建进行中',
+            'completed': '已完成',
+            'success': '构建成功',
+            'failure': '构建失败',
+            'cancelled': '已取消',
+            'timed_out': '已超时',
+            'skipped': '已跳过',
+            'action_required': '需要人工处理'
+        };
+
+        function localizeStatus() {
+            const el = document.getElementById('statusText');
+            if (!el) return;
+            const raw = (el.textContent || '').trim();
+            el.textContent = STATUS_ZH[raw.toLowerCase()] || raw;
+        }
+
+        // 模拟进度（上游已停用：GitHub API 只返回构建状态，没有百分比）
         function simulateProgress() {
             const progressBar = document.getElementById('progressBarFill');
             const statusText = document.getElementById('statusText');
             let progress = 0;
             const stages = [
-                'Initializing build process',
-                'Compiling source code',
-                'Generating platform-specific binaries',
-                'Packaging application',
-                'Finalizing build'
+                '正在初始化构建流程',
+                '正在编译源代码',
+                '正在生成平台专用二进制文件',
+                '正在打包应用',
+                '正在完成构建'
             ];
 
             const progressInterval = setInterval(() => {
@@ -236,13 +270,15 @@
             }, 1000);
         }
 
-        // Call on page load
+        // 页面加载时执行
         updatePlatformUI();
+        localizeStatus();
         //simulateProgress();
 
+        // 30 秒后重新查询一次构建状态
         setTimeout(function() {
             window.location.replace('/check_for_file?filename={{filename}}&uuid={{uuid}}&platform={{platform}}');
-        }, 30000); // 20000 milliseconds = 20 seconds
+        }, 30000);
     </script>
 </body>
 </html>
