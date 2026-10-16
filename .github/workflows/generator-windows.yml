@@ -28,8 +28,13 @@ env:
   FLUTTER_ELINUX_VERSION: "3.16.9"
   TAG_NAME: "${{ inputs.upload-tag }}"
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
-  # vcpkg version: 2024.07.12
-  VCPKG_COMMIT_ID: "9e593bb18ea69cc5095e012465dcd675a822ed0d"
+  # vcpkg 基线必须按 RustDesk 版本选择：
+  #   1.4.x 的 res/vcpkg/aom 用的仍是旧版 libaom，其 build/cmake/aom_optimization.cmake
+  #         会探测遗留的 `nasm -O` 多遍优化；只能配旧基线 120deac（自带 nasm 2.x）。
+  #   1.5.0 / master 的 libaom 已不再做该探测，配新基线 9e593bb（nasm 3.01）。
+  # 上游在 v1.5.0 提交里把这里的条件化写成了硬编码 9e593bb，导致构建 1.4.9 等老 tag 时
+  # aom 报 "Unsupported nasm: multipass optimization not supported." 而失败，此处恢复条件化。
+  VCPKG_COMMIT_ID: "${{ startsWith(inputs.version, '1.4') && '120deac3062162151622ca4860575a33844ba10b' || '9e593bb18ea69cc5095e012465dcd675a822ed0d' }}"
   ARMV7_VCPKG_COMMIT_ID: "6f29f12e82a8293156836ad81cc9bf5af41fe836"
   VERSION: "${{ inputs.version }}"
   NDK_VERSION: "r28c"
