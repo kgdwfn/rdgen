@@ -890,6 +890,10 @@
                             {{ form.installation }}
                         </div>
                         <div class="mb-3">
+                            <label for="{{ form.settings.id_for_label }}" class="form-label">禁用设置:</label>
+                            {{ form.settings }}
+                        </div>
+                        <div class="mb-3">
                             <label for="{{ form.androidappid.id_for_label }}" class="form-label">自定义安卓应用 ID（替换默认值com.carriez.flutter_hbb，留空则使用默认值）：</label>
                             {{ form.androidappid }}
                         </div>

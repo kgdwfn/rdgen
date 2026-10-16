@@ -68,6 +68,10 @@ class GenerateForm(forms.Form):
         ('installationY', '否，启用安装'),
         ('installationN', '是, 禁用安装')
     ], initial='installationY')
+    settings = forms.ChoiceField(label="Disable Settings", choices=[
+        ('settingsY', '否，启用设置'),
+        ('settingsN', '是, 禁用设置')
+    ], initial='settingsY')
     androidappid = forms.CharField(label="Custom Android App ID (replaces 'com.carriez.flutter_hbb')", required=False)
 
     #Custom Server
