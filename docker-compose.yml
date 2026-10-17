@@ -1,8 +1,8 @@
 services:
   rdgen:
-    # use bryangerlach/rdgen:latest for the latest build
-    #build: .
-    image: bryangerlach/rdgen:latest
+    # build from local Dockerfile (carries our fixes) and tag as rdgen-rdgen
+    build: .
+    image: rdgen-rdgen
     restart: unless-stopped
     environment:
       SECRET_KEY: "django-insecure-!(t-!f#6g#sr%yfded9(xha)g+=!6craeez^cp+*&bz_7vdk61"
@@ -17,7 +17,8 @@ services:
     ports:
       - "8000:8000"
     dns:
-      - 8.8.8.8
+      - 223.5.5.5
+      - 119.29.29.29
     volumes:
       - ./exe:/opt/rdgen/exe
       - ./png:/opt/rdgen/png
