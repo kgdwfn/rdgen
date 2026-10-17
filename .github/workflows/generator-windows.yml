@@ -705,23 +705,32 @@ jobs:
         continue-on-error: true
         if: env.UPLOAD_ARTIFACT == 'true'
         run: |
-          # Chinese (and other non-ASCII) app names need a UTF-8 codepage in the WiX sources
-          Get-ChildItem -Path "./res/msi" -Recurse -Include "*.wxs", "*.wxl" | ForEach-Object {
-            $content = Get-Content $_.FullName -Raw -Encoding UTF8
-            if ($content -match 'Codepage="1252"') {
-              $content = $content -replace 'Codepage="1252"', 'Codepage="65001"'
-              Set-Content $_.FullName -Value $content -Encoding UTF8 -NoNewline
-            }
-          }
           $myappname = "${{ env.appname }}" -replace '\s','_'
           cp "rustdesk/${{ env.appname }}.exe" "rustdesk/${myappname}.exe" -ErrorAction SilentlyContinue
           pushd ./res/msi
           python preprocess.py --app-name "$myappname" --arp -d ../../rustdesk
+          # Chinese (and other non-ASCII) app names need a UTF-8 codepage in the WiX
+          # sources. MUST run AFTER preprocess.py, otherwise it regenerates the .wxs/.wxl
+          # with Codepage="1252" and the 1.4.x MSI build fails (WIX0311). The regex also
+          # tolerates spaces/quote variations (Codepage = "1252", Codepage='1252', ...).
+          Get-ChildItem -Path "." -Recurse -Include "*.wxs", "*.wxl" | ForEach-Object {
+            $content = Get-Content $_.FullName -Raw -Encoding UTF8
+            if ($content -match 'Codepage') {
+              $content = $content -replace 'Codepage\s*=\s*.?1252.?', 'Codepage="65001"'
+              Set-Content $_.FullName -Value $content -Encoding UTF8 -NoNewline
+            }
+          }
           nuget restore msi.sln
           msbuild msi.sln -p:Configuration=Release -p:Platform=x64 /p:TargetVersion=Windows10
-          cp ./Package/bin/x64/Release/en-us/Package.msi ../../SignOutput/rustdesk-latest.msi
-          mv ./Package/bin/x64/Release/en-us/Package.msi ../../SignOutput/rustdesk.msi
-          sha256sum ../../SignOutput/rustdesk.msi
+          # 1.4.x emits Package.msi without the en-us sub-folder that 1.5.x uses; locate it.
+          $msi = Get-ChildItem -Path "./Package/bin" -Recurse -Filter "Package.msi" | Select-Object -First 1
+          if ($msi) {
+            cp $msi.FullName ../../SignOutput/rustdesk-latest.msi
+            mv $msi.FullName ../../SignOutput/rustdesk.msi
+            sha256sum ../../SignOutput/rustdesk.msi
+          } else {
+            echo "Package.msi not found under ./Package/bin; skipping MSI (1.4.x may not emit an MSI)"
+          }
           popd
 
       - name: zip exe and msi
