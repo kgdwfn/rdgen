@@ -136,6 +136,24 @@ jobs:
           choco install -y imagemagick.app --no-progress
           Get-ChildItem -Path "${env:ProgramFiles}" | % { $_.FullName } | Select-String -Pattern "[\/\\]ImageMagick[^\/\\]*$" | Out-File -Append -FilePath $env:GITHUB_PATH -Encoding utf8
 
+      - name: set powered-by text to compname
+        # 必须置于 change appname to custom 之前：该步会把 lang 文件里所有 RustDesk 换成 appname，
+        # 若先执行，powered_by_me 行将不再含 RustDesk，本步只会空转。
+        # 独立成步且不受 appname 条件限制，保证 appname 留空/中文时文案也能替换。
+        if: env.compname != ''
+        continue-on-error: true
+        shell: bash
+        run: |
+          find ./src/lang -name "*.rs" -exec sed -i '/powered_by_me/s|RustDesk|${{ env.compname }}|g' {} \;
+
+      - name: always show powered-by
+        # 上游 index.tis 以 is_custom_client && 包裹 powered-by 元素；
+        # appname 留空或中文时 custom_.txt 无 app-name -> is_custom_client=false -> 元素不渲染。
+        # 去掉该条件（保留 hide-powered-by-me 开关），保证无论 appname 填不填都显示。
+        shell: bash
+        run: |
+          sed -i -e 's|{is_custom_client \&\& handler.get_builtin_option|{handler.get_builtin_option|' ./src/ui/index.tis
+
       - name: change appname to custom
         if: env.appname != 'rustdesk'
         continue-on-error: true

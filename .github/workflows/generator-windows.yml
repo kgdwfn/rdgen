@@ -162,6 +162,24 @@ jobs:
           sed -i -e 's|2ded7f146437a761ffe6981e2f742038f85ca68d|08a471bb8ceccdd50483c81cdfa8b81b07b14b87|' ./flutter/pubspec.lock
           sed -i -e 's|2ded7f146437a761ffe6981e2f742038f85ca68d|08a471bb8ceccdd50483c81cdfa8b81b07b14b87|' ./flutter/pubspec.yaml
       
+      - name: set powered-by text to compname
+        # 必须置于 change appname to custom 之前：该步会把 lang 文件里所有 RustDesk 换成 appname，
+        # 若先执行，powered_by_me 行将不再含 RustDesk，本步只会空转。
+        # 独立成步且不受 appname 条件限制，保证 appname 留空/中文时文案也能替换。
+        if: env.compname != ''
+        continue-on-error: true
+        shell: bash
+        run: |
+          find ./src/lang -name "*.rs" -exec sed -i '/powered_by_me/s|RustDesk|${{ env.compname }}|g' {} \;
+
+      - name: always show powered-by
+        # 上游 desktop_home_page.dart 以 if (bind.isCustomClient()) 包裹 loadPowered；
+        # appname 留空或中文时 custom_.txt 无 app-name -> isCustomClient()=false -> 整句不渲染。
+        # 去掉该闸门，保证无论 appname 填不填都显示"由 X 提供支持"（文字由 compname 决定）。
+        shell: bash
+        run: |
+          sed -i -e 's|if (bind.isCustomClient())|// custom: powered-by always shown|' ./flutter/lib/desktop/pages/desktop_home_page.dart
+
       - name: change appname to custom
         if: env.appname != 'rustdesk'
         continue-on-error: true
@@ -185,10 +203,7 @@ jobs:
           sed -i -e 's|"rustdesk.exe"|"${{ env.filename }}"|' ./flutter/windows/runner/Runner.rc
           sed -i -e 's|"RustDesk"|"${{ env.appname }}"|' ./flutter/windows/runner/Runner.rc
           # ./src/lang/en.rs
-          # change powered by rustdek to powered by compname
-          if [ ! -z "${{ env.compname }}" ]; then
-            find ./src/lang -name "*.rs" -exec sed -i '/powered_by_me/s|RustDesk|${{ env.compname }}|g' {} \;
-          fi
+          # powered_by_me 文案由前置的 set powered-by text to compname 步负责替换
           find ./src/lang -name "*.rs" -exec sed -i -e 's|RustDesk|${{ env.appname }}|' {} \;
           sed -i -e 's|RustDesk|${{ env.appname }}|' ./res/msi/Package/License.rtf
 
