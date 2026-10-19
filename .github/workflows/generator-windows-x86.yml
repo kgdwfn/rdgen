@@ -150,9 +150,11 @@ jobs:
         # 上游 index.tis 以 is_custom_client && 包裹 powered-by 元素；
         # appname 留空或中文时 custom_.txt 无 app-name -> is_custom_client=false -> 元素不渲染。
         # 去掉该条件（保留 hide-powered-by-me 开关），保证无论 appname 填不填都显示。
+        # 同时把字号从上游的 0.8em 放大到 1em（该串在 1.4.6+ 全版本唯一，1.4.0-1.4.5 自动 no-op）。
         shell: bash
         run: |
           sed -i -e 's|{is_custom_client \&\& handler.get_builtin_option|{handler.get_builtin_option|' ./src/ui/index.tis
+          sed -i -e 's|font-size:0.8em|font-size:1em|' ./src/ui/index.tis
 
       - name: change appname to custom
         if: env.appname != 'rustdesk'

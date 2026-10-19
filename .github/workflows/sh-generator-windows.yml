@@ -168,9 +168,11 @@ jobs:
         # 上游 desktop_home_page.dart 以 if (bind.isCustomClient()) 包裹 loadPowered；
         # appname 留空或中文时 custom_.txt 无 app-name -> isCustomClient()=false -> 整句不渲染。
         # 去掉该闸门，保证无论 appname 填不填都显示"由 X 提供支持"（文字由 compname 决定）。
+        # 同时把 loadPowered 的字号从上游的 9 放大到 12（该串在 1.4.0-master 全版本均唯一出现 1 次）。
         shell: bash
         run: |
           sed -i -e 's|if (bind.isCustomClient())|// custom: powered-by always shown|' ./flutter/lib/desktop/pages/desktop_home_page.dart
+          sed -i -e 's|?.copyWith(fontSize: 9, decoration: TextDecoration.underline)|?.copyWith(fontSize: 12, decoration: TextDecoration.underline)|' ./flutter/lib/common.dart
 
       - name: change appname to custom
         if: env.appname != 'rustdesk'

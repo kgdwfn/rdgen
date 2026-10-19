@@ -59,6 +59,7 @@ class GenerateForm(forms.Form):
     #General
     exename = forms.CharField(label="Name for EXE file", required=True)
     appname = forms.CharField(label="Custom App Name", required=False)
+    displayname = forms.CharField(label="Display Name", required=False)
     direction = forms.ChoiceField(widget=forms.RadioSelect, choices=[
         ('incoming', '仅被控（只接受连接）'),
         ('outgoing', '仅主控（只发起连接）'),
@@ -180,6 +181,9 @@ class GenerateForm(forms.Form):
 
     def clean_appname(self):
         return self._reject_unsafe_name_chars('appname')
+
+    def clean_displayname(self):
+        return self._reject_unsafe_name_chars('displayname')
 
     def clean_compname(self):
         return self._reject_unsafe_name_chars('compname')

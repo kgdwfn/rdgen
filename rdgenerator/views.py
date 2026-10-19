@@ -75,6 +75,10 @@ def generate_custom_client(params, full_url):
     appname = params.get('appname', '')
     if not appname:
         appname = "rustdesk"
+    # 运行时显示名：只写进 custom_.txt，不进构建链。
+    # appname 仍受 ASCII 闸门约束（exe 文件名/注册表/资源/Runner.rc 全英文）；
+    # displayname 允许中文，由 Rust 侧读 custom_.txt 的 app-name 后用于标题栏与界面文案。
+    displayname = params.get('displayname', '')
     filename = params.get('exename', 'rustdesk')
     compname = params.get('compname', '')
     if not compname:
@@ -172,8 +176,12 @@ def generate_custom_client(params, full_url):
         decodedCustom['disable-installation'] = 'Y'
     if settings == "settingsN":
         decodedCustom['disable-settings'] = 'Y'
-    if appname.upper() != "rustdesk".upper() and appname != "":
-        decodedCustom['app-name'] = appname
+    # app-name 决定运行时 APP_NAME -> 标题栏、界面文案里的 RustDesk 字样、
+    # 以及 is_custom_client()（APP_NAME != "RustDesk"）。
+    # displayname 优先（可中文）；留空则回落到 appname，保持原有行为。
+    runtime_appname = displayname or appname
+    if runtime_appname.upper() != "rustdesk".upper() and runtime_appname != "":
+        decodedCustom['app-name'] = runtime_appname
     decodedCustom['override-settings'] = {}
     decodedCustom['default-settings'] = {}
 
