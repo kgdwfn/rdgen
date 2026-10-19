@@ -202,6 +202,26 @@ jobs:
           sed -i -e 's|https://rustdesk.com/download|${{ env.downloadLink }}|' ./src/ui/index.tis
           sed -i -e 's|&download_url|"${{ env.downloadLink }}"|' ./src/updater.rs
 
+      - name: custom update flow - show card and open browser on click (sciter)
+        if: env.downloadLink != 'https://rustdesk.com/download'
+        continue-on-error: true
+        shell: bash
+        run: |
+          # Sciter UI (x86 build). The update card is driven by Rust's SOFTWARE_UPDATE_URL and its
+          # click handler already calls handler.open_url(...), which the "change download link to
+          # custom" step above already points at downloadLink - the click already opens the
+          # browser. Three things still block the flow for custom clients:
+          #   3) check_software_update()'s custom-client early-return -> always false, otherwise
+          #      SOFTWARE_UPDATE_URL stays empty and the card never renders at all
+          #   6) UpdateMe render: drop the is_custom_client branch so the "Click to download"
+          #      link shows instead of "contact your administrator" (no such branch in
+          #      1.4.0-1.4.5, the sed is a no-op there)
+          #   5) custom clients skip the Rust-side silent background update entirely
+          # MUST stay before the removeNewVersionNotif step so that option can still override.
+          sed -i -e '/^pub fn check_software_update() {$/,/^}$/ s|^    if is_custom_client() {$|    if false \&\& is_custom_client() {|' ./src/common.rs
+          sed -i -e "/^fn check_update(manually: bool) -> ResultType<()> {\$/a\\    if crate::is_custom_client() {\n        return Ok(());\n    }" ./src/updater.rs
+          sed -i -e 's|{is_custom_client$|{false|' ./src/ui/index.tis
+
       - name: set server, serverPort, key, and apiserver
         continue-on-error: true
         shell: bash

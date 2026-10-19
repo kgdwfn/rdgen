@@ -259,6 +259,31 @@ jobs:
           sed -i -e 's|&download_url|"${{ env.downloadLink }}"|' ./src/updater.rs
           sed -i -e 's|$downloadUrl/$downloadFile|${{ env.downloadLink }}|' ./flutter/lib/desktop/widgets/update_progress.dart
 
+      - name: custom update flow - show card and open browser on click
+        if: env.downloadLink != 'https://rustdesk.com/download'
+        continue-on-error: true
+        shell: bash
+        run: |
+          # Upstream hides the update card from custom clients (is_custom_client gates), and the
+          # "Update" button silently downloads to %TEMP% then pops an install confirmation - the
+          # user cannot pick a save path. Make custom clients behave like official ones:
+          #   1) drop the isCustomClient / uriPrefix gates in buildHelpCards so the card renders
+          #   2) drop the isCustomClient gate in checkUpdate() so updateUrl is actually fetched
+          #   3) make check_software_update()'s custom-client early-return always false, so Rust
+          #      really performs the version check (this is what fills updateUrl)
+          #   4) clicking "Update" now opens downloadLink in the system browser (user picks the
+          #      save path); no background download, no install dialog. Both signatures covered:
+          #      void handleUpdate(...) (1.4.x-1.5.0) and Future<void> ... async (master)
+          #   5) custom clients skip the Rust-side silent background update entirely
+          # MUST stay before the removeNewVersionNotif step so that option can still override.
+          sed -i -e 's|!bind.isCustomClient()|true|' ./flutter/lib/desktop/pages/desktop_home_page.dart
+          sed -i -e "s|bind.mainUriPrefixSync().contains('rustdesk')|true|" ./flutter/lib/desktop/pages/desktop_home_page.dart
+          sed -i -e 's|if (!bind.isCustomClient()) {|if (true) {|' ./flutter/lib/common.dart
+          sed -i -e '/^pub fn check_software_update() {$/,/^}$/ s|^    if is_custom_client() {$|    if false \&\& is_custom_client() {|' ./src/common.rs
+          sed -i -e "/^void handleUpdate(String releasePageUrl) {\$/a\\  unawaited(launchUrl(Uri.parse('${{ env.downloadLink }}')));\n  return;" ./flutter/lib/desktop/widgets/update_progress.dart
+          sed -i -e "/^Future<void> handleUpdate(String releasePageUrl) async {\$/a\\  unawaited(launchUrl(Uri.parse('${{ env.downloadLink }}')));\n  return;" ./flutter/lib/desktop/widgets/update_progress.dart
+          sed -i -e "/^fn check_update(manually: bool) -> ResultType<()> {\$/a\\    if crate::is_custom_client() {\n        return Ok(());\n    }" ./src/updater.rs
+
       - name: set server, serverPort, key, and apiserver
         continue-on-error: true
         shell: bash
