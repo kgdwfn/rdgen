@@ -179,8 +179,25 @@ class GenerateForm(forms.Form):
             )
         return value
 
+    def _reject_non_ascii_name(self, field, label):
+        """exename / appname 会进构建链（exe 名、注册表、MSI Product 与安装路径、
+        Runner.rc、Cargo.toml 版本信息），非 ASCII 会让 MSI 安装器崩溃。
+        views.py 里有兜底回落，但静默丢弃会让用户以为填了生效。这里直接报错。"""
+        value = self.cleaned_data.get(field, '')
+        if value and not all(char.isascii() for char in value):
+            raise forms.ValidationError(
+                f"{label} 只能使用英文字母、数字、下划线和连字符（不支持中文等非 ASCII 字符）。"
+                "若想让界面显示中文，请填写下方的「界面显示名称」。"
+            )
+        return value
+
+    def clean_exename(self):
+        self._reject_unsafe_name_chars('exename')
+        return self._reject_non_ascii_name('exename', '文件名')
+
     def clean_appname(self):
-        return self._reject_unsafe_name_chars('appname')
+        self._reject_unsafe_name_chars('appname')
+        return self._reject_non_ascii_name('appname', '应用名称')
 
     def clean_displayname(self):
         return self._reject_unsafe_name_chars('displayname')

@@ -53,6 +53,18 @@ def validate_generate_params(data):
     else:
         cleaned['exename'] = exename
 
+    # Build-chain names must be pure ASCII: they end up in the exe name, registry keys,
+    # MSI Product / install path, Runner.rc and Cargo.toml metadata. Non-ASCII makes the
+    # MSI installer crash, so reject it up front instead of silently falling back.
+    for field, label in (('exename', 'exename'), ('appname', 'appname')):
+        value = data.get(field, '')
+        if value and not all(c.isascii() for c in value):
+            errors[field] = (
+                f'{label} must be ASCII only (letters, digits, underscore, hyphen); '
+                "non-ASCII characters break the MSI installer. "
+                "Use the 'displayname' field for a non-ASCII UI name."
+            )
+
     # Choice fields
     choice_validations = {
         'platform': (PLATFORM_CHOICES, 'windows'),
