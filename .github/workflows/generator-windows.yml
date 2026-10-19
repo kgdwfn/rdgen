@@ -748,7 +748,15 @@ jobs:
         continue-on-error: true
         if: env.UPLOAD_ARTIFACT == 'true'
         run: |
-          $myappname = "${{ env.appname }}" -replace '\s','_'
+          # appname 正常应为纯 ASCII（views.py 有 ASCII 闸门，界面显示名称只进 custom_.txt）。
+          # 这里再兜一层：任何非 ASCII 漏进 appname 都会让 MSI 的 Product 与默认安装路径
+          # （C:\Program Files\<名>）含中文，安装器会崩溃，故强制回落 rustdesk。
+          $appRaw = "${{ env.appname }}"
+          if (-not $appRaw -or ($appRaw -cmatch '[^\x00-\x7F]')) {
+            Write-Host "appname '$appRaw' is empty or non-ASCII, falling back to 'rustdesk' for MSI"
+            $appRaw = 'rustdesk'
+          }
+          $myappname = $appRaw -replace '\s','_'
           cp "rustdesk/${{ env.appname }}.exe" "rustdesk/${myappname}.exe" -ErrorAction SilentlyContinue
           pushd ./res/msi
           python preprocess.py --app-name "$myappname" --arp -d ../../rustdesk

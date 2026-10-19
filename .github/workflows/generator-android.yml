@@ -344,6 +344,26 @@ jobs:
           # ./flutter/pubspec.yaml
           #sed -i '/intl:/a \ \ archive: ^3.6.1' ./flutter/pubspec.yaml
           
+      - name: set powered-by text to compname
+        # 必须置于 change appname to custom 之前：该步会把 lang 文件里所有 RustDesk 换成 appname，
+        # 若先执行，powered_by_me 行将不再含 RustDesk，本步只会空转。
+        # 独立成步且不受 appname 条件限制，保证 appname 留空/中文时文案也能替换。
+        if: env.compname != ''
+        continue-on-error: true
+        shell: bash
+        run: |
+          find ./src/lang -name "*.rs" -exec sed -i '/powered_by_me/s|RustDesk|${{ env.compname }}|g' {} \;
+
+      - name: always show powered-by
+        # Android 的 powered-by 在设置页 flutter/lib/mobile/pages/settings_page.dart，
+        # 上游以 if (bind.isCustomClient()) 包裹；appname 留空或中文时 custom_.txt 无 app-name
+        # -> isCustomClient()=false -> 不渲染。去掉闸门保证始终显示，并把字号从 9 放大到 12
+        # （loadPowered 定义在 flutter/lib/common.dart，该串在全版本均唯一出现 1 次）。
+        shell: bash
+        run: |
+          sed -i -e 's|if (bind.isCustomClient())|// custom: powered-by always shown|' ./flutter/lib/mobile/pages/settings_page.dart
+          sed -i -e 's|?.copyWith(fontSize: 9, decoration: TextDecoration.underline)|?.copyWith(fontSize: 12, decoration: TextDecoration.underline)|' ./flutter/lib/common.dart
+
       - name: change appname to custom
         if: env.appname != 'rustdesk'
         continue-on-error: true
