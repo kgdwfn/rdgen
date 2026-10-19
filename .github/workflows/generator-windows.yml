@@ -759,7 +759,11 @@ jobs:
           $myappname = $appRaw -replace '\s','_'
           cp "rustdesk/${{ env.appname }}.exe" "rustdesk/${myappname}.exe" -ErrorAction SilentlyContinue
           pushd ./res/msi
-          python preprocess.py --app-name "$myappname" --arp -d ../../rustdesk
+          # 必须显式传 --manufacturer：用 appname（ASCII），不要用 preprocess.py 里被
+          # change company name 步替换过的默认值（那是 compname，可能是中文）。
+          # Package.wxs 的 <Package Manufacturer=...> 直接进 MSI 安装器标题栏与"发行商"信息，
+          # 非 ASCII 会让安装路径/标题含中文。
+          python preprocess.py --app-name "$myappname" --manufacturer "$myappname" --arp -d ../../rustdesk
           # Chinese (and other non-ASCII) app names need a UTF-8 codepage in the WiX
           # sources. MUST run AFTER preprocess.py, otherwise it regenerates the .wxs/.wxl
           # with Codepage="1252" and the 1.4.x MSI build fails (WIX0311). The regex also
