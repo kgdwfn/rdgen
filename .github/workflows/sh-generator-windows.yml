@@ -660,10 +660,10 @@ jobs:
             $appRaw = 'rustdesk'
           }
           $myappname = $appRaw -replace '\s','_'
-          # 源文件名也用兜底后的 ASCII 名：原始 env.appname 若为中文，exe 会被 mv 成中文名，
-          # 而 preprocess.py 按 --app-name 找 <name>.exe，两边对不上就会装不出文件。
-          $srcExe = "rustdesk/${{ env.appname }}.exe"
-          if (-not (Test-Path $srcExe)) { $srcExe = "rustdesk/$myappname.exe" }
+          # 源文件名用兜底后的 ASCII 名：原始 env.appname 若为中文，
+          # exe 会被 mv 成中文名，而 preprocess.py 按 --app-name 找 <name>.exe，
+          # 两边对不上就装不出文件；中文路径在 Windows shell 里也会直接报错。
+          $srcExe = "rustdesk/${myappname}.exe"
           cp $srcExe "rustdesk/${myappname}.exe" -ErrorAction SilentlyContinue
           pushd ./res/msi
           # 必须显式传 --manufacturer：用 appname（ASCII），不要用 preprocess.py 里被
