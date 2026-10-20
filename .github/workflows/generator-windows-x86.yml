@@ -534,11 +534,18 @@ jobs:
       - name: Build self-extracted executable
         shell: bash
         run: |
-          mv "./Release/rustdesk.exe" "./Release/${{ env.appname }}.exe" || echo "rustdesk.exe"
+          # appname 理论上已被 views.py 的ASCII 闸门保证纯ASCII；这里再兜一层，
+          # 避免中文名进入 exe 文件名与 portable packer 的元数据。
+          APP_ASCII="${{ env.appname }}"
+          if [ -z "$APP_ASCII" ] || echo "$APP_ASCII" | grep -qP '[^\x00-\x7F]'; then
+            echo "appname '$APP_ASCII' is empty or non-ASCII, falling back to 'rustdesk'"
+            APP_ASCII="rustdesk"
+          fi
+          mv "./Release/rustdesk.exe" "./Release/${APP_ASCII}.exe" || echo "rustdesk.exe"
           sed -i '/dpiAware/d' res/manifest.xml
           pushd ./libs/portable
           pip3 install -r requirements.txt
-          python3 ./generate.py -f ../../Release/ -o . -e "../../Release/${{ env.appname }}.exe"
+          python3 ./generate.py -f ../../Release/ -o . -e "../../Release/${APP_ASCII}.exe"
           popd
           # rustdesk-portable-packer is a separate workspace member (root
           # `cargo build --bins` does not build it) and it embeds
