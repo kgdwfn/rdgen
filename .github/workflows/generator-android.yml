@@ -354,6 +354,16 @@ jobs:
         run: |
           find ./src/lang -name "*.rs" -exec sed -i '/powered_by_me/s|RustDesk|${{ env.compname }}|g' {} \;
 
+      - name: fix login dialog null OIDC options
+        # 1.5.0 起UserModel.queryOidcLoginOptions() 删掉了 1.4.9 的 try/catch，
+        # OIDC 配置为 "null" 时 jsonDecode 返回 null，直接 return 违反
+        # Future<List<dynamic>> 签名，登录界面抛
+        # "type 'Null' is not a subtype of type 'FutureOr<List<dynamic>>'"。
+        # 补回 null 兜底。1.4.9 该行缩进不同（10 空格），本 sed 自动 no-op。
+        shell: bash
+        run: |
+          sed -i -e "s|^        return jsonDecode(item.substring('common-oidc/'.length));$|        final _decoded = jsonDecode(item.substring('common-oidc/'.length));\n        if (_decoded != null) return _decoded;\n        return <dynamic>[];|" ./flutter/lib/models/user_model.dart
+
       - name: always show powered-by
         # Android 的 powered-by 在设置页 flutter/lib/mobile/pages/settings_page.dart，
         # 上游以 if (bind.isCustomClient()) 包裹；appname 留空或中文时 custom_.txt 无 app-name

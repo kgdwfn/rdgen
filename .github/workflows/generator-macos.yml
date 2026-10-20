@@ -127,6 +127,25 @@ jobs:
           brew install imagemagick potrace nasm cmake gcc wget ninja
           echo "$(brew --prefix imagemagick)/bin" >> $GITHUB_PATH
 
+      - name: set powered-by text to compname
+        # 必须置于 Update macOS Info.plist and settings 之前：该步会执行
+        # find ./src/lang -name "*.rs" -exec sed -i '' -e 's|RustDesk|appname|'，
+        # 若先执行 powered_by_me 行将不再含 RustDesk，本步只会空转。
+        if: env.compname != ''
+        continue-on-error: true
+        shell: bash
+        run: |
+          find ./src/lang -name "*.rs" -exec sed -i '' -e '/powered_by_me/s|RustDesk|${{ env.compname }}|g' {} \;
+
+      - name: always show powered-by
+        # appname 留空或中文时 custom_.txt 无 app-name -> isCustomClient()=false
+        # -> 整句不渲染。去掉闸门保证始终显示，并把字号从 9 放大到 14。
+        continue-on-error: true
+        shell: bash
+        run: |
+          sed -i -e 's|if (bind.isCustomClient())|// custom: powered-by always shown|' ./flutter/lib/desktop/pages/desktop_home_page.dart
+          sed -i -e 's|?.copyWith(fontSize: 9, decoration: TextDecoration.underline)|?.copyWith(fontSize: 14, decoration: TextDecoration.underline)|' ./flutter/lib/common.dart
+
       - name: Update macOS Info.plist and settings
         continue-on-error: false
         shell: bash
