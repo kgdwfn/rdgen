@@ -176,11 +176,14 @@ jobs:
         # 上游 desktop_home_page.dart 以 if (bind.isCustomClient()) 包裹 loadPowered；
         # appname 留空或中文时 custom_.txt 无 app-name -> isCustomClient()=false -> 整句不渲染。
         # 去掉该闸门，保证无论 appname 填不填都显示"由 X 提供支持"（文字由 compname 决定）。
-        # 同时把 loadPowered 的字号从上游的 9 放大到 12（该串在 1.4.0-master 全版本均唯一出现 1 次）。
+        # 同时把 loadPowered 的字号从上游的 9 放大到 14（该串在 1.4.0-master 全版本均唯一出现 1 次）。
+        # 再补上仅主控(outgoing only)时左下角那个齿轮：它走 buildPopupMenu -> onAddSetting，
+        # 上游没有 isDisableSettings() 闸门，所以"禁用设置"对仅主控无效。
         shell: bash
         run: |
           sed -i -e 's|if (bind.isCustomClient())|// custom: powered-by always shown|' ./flutter/lib/desktop/pages/desktop_home_page.dart
-          sed -i -e 's|?.copyWith(fontSize: 9, decoration: TextDecoration.underline)|?.copyWith(fontSize: 12, decoration: TextDecoration.underline)|' ./flutter/lib/common.dart
+          sed -i -e 's|?.copyWith(fontSize: 9, decoration: TextDecoration.underline)|?.copyWith(fontSize: 14, decoration: TextDecoration.underline)|' ./flutter/lib/common.dart
+          sed -i -e 's|^                        buildPopupMenu(context)$|                        if (!bind.isDisableSettings()) buildPopupMenu(context)|' ./flutter/lib/desktop/pages/desktop_home_page.dart
 
       - name: change appname to custom
         if: env.appname != 'rustdesk'
@@ -757,7 +760,11 @@ jobs:
             $appRaw = 'rustdesk'
           }
           $myappname = $appRaw -replace '\s','_'
-          cp "rustdesk/${{ env.appname }}.exe" "rustdesk/${myappname}.exe" -ErrorAction SilentlyContinue
+          # 源文件名也用兜底后的 ASCII 名：原始 env.appname 若为中文，exe 会被 mv 成中文名，
+          # 而 preprocess.py 按 --app-name 找 <name>.exe，两边对不上就会装不出文件。
+          $srcExe = "rustdesk/${{ env.appname }}.exe"
+          if (-not (Test-Path $srcExe)) { $srcExe = "rustdesk/$myappname.exe" }
+          cp $srcExe "rustdesk/${myappname}.exe" -ErrorAction SilentlyContinue
           pushd ./res/msi
           # 必须显式传 --manufacturer：用 appname（ASCII），不要用 preprocess.py 里被
           # change company name 步替换过的默认值（那是 compname，可能是中文）。
@@ -776,6 +783,25 @@ jobs:
             }
           }
           nuget restore msi.sln
+          # 最后一道闸门：编译前扫一遍 Product/Manufacturer/INSTALLFOLDER 的实际取值，
+          # 只要还是非 ASCII 就不产出 MSI（中文路径的安装器必崩，产出反而是害）。
+          $nonAscii = $false
+          foreach ($f in @("./Package/Includes.wxi", "./Package/Components/Folders.wxs")) {
+            if (Test-Path $f) {
+              $c = Get-Content $f -Raw -Encoding UTF8
+              foreach ($m in [regex]::Matches($c, '<\?define\s+(Product|Manufacturer)\s*=\s*"([^"]*)"')) {
+                if ($m.Groups[2].Value -cmatch '[^\x00-\x7F]') {
+                  Write-Host "ABORT: $($m.Groups[1].Value) is non-ASCII -> '$($m.Groups[2].Value)'; skipping MSI"
+                  $nonAscii = $true
+                }
+              }
+            }
+          }
+          if ($nonAscii) {
+            Write-Host "Skipping MSI build to avoid producing a broken Chinese-path installer."
+            popd
+            exit 0
+          }
           msbuild msi.sln -p:Configuration=Release -p:Platform=x64 /p:TargetVersion=Windows10
           # 1.4.x emits Package.msi without the en-us sub-folder that 1.5.x uses; locate it.
           $msi = Get-ChildItem -Path "./Package/bin" -Recurse -Filter "Package.msi" | Select-Object -First 1

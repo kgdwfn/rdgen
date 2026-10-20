@@ -357,12 +357,12 @@ jobs:
       - name: always show powered-by
         # Android 的 powered-by 在设置页 flutter/lib/mobile/pages/settings_page.dart，
         # 上游以 if (bind.isCustomClient()) 包裹；appname 留空或中文时 custom_.txt 无 app-name
-        # -> isCustomClient()=false -> 不渲染。去掉闸门保证始终显示，并把字号从 9 放大到 12
+        # -> isCustomClient()=false -> 不渲染。去掉闸门保证始终显示，并把字号从 9 放大到 14
         # （loadPowered 定义在 flutter/lib/common.dart，该串在全版本均唯一出现 1 次）。
         shell: bash
         run: |
           sed -i -e 's|if (bind.isCustomClient())|// custom: powered-by always shown|' ./flutter/lib/mobile/pages/settings_page.dart
-          sed -i -e 's|?.copyWith(fontSize: 9, decoration: TextDecoration.underline)|?.copyWith(fontSize: 12, decoration: TextDecoration.underline)|' ./flutter/lib/common.dart
+          sed -i -e 's|?.copyWith(fontSize: 9, decoration: TextDecoration.underline)|?.copyWith(fontSize: 14, decoration: TextDecoration.underline)|' ./flutter/lib/common.dart
 
       - name: change appname to custom
         if: env.appname != 'rustdesk'

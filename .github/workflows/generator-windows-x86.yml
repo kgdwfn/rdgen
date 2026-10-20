@@ -154,7 +154,7 @@ jobs:
         shell: bash
         run: |
           sed -i -e 's|{is_custom_client \&\& handler.get_builtin_option|{handler.get_builtin_option|' ./src/ui/index.tis
-          sed -i -e 's|font-size:0.8em|font-size:1em|' ./src/ui/index.tis
+          sed -i -e 's|font-size:0.8em|font-size:1.2em|' ./src/ui/index.tis
 
       - name: change appname to custom
         if: env.appname != 'rustdesk'
