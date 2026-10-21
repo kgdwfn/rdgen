@@ -1052,6 +1052,10 @@
                             <label for="{{ form.logofile.id_for_label }}" class="form-label">自定义应用Logo（PNG 格式）</label>
                             {{ form.logofile }}
                             <div id="logo-preview" class="mt-1"></div>
+                            <div class="mt-2">
+                                <label for="{{ form.logo_size.id_for_label }}" class="form-label mb-1">{{ form.logo_size.label }}</label>
+                                {{ form.logo_size }}
+                            </div>
                         </div>
                         <div class="mb-3">
                             <label for="{{ form.privacyfile.id_for_label }}" class="form-label">自定义隐私遮罩图（PNG 格式）</label>

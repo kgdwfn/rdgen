@@ -378,6 +378,19 @@ def generate_custom_client(params, full_url):
         if selfhosted:
             url = 'https://api.github.com/repos/'+_settings.GHUSER+'/'+_settings.REPONAME+'/actions/workflows/sh-generator-windows.yml/dispatches'
 
+    # 自定义 Logo 显示尺寸：留空=上游默认 300x60；填了则按比例放大约束框
+    logo_size_raw = params.get('logo_size')
+    logo_max_height = 'false'
+    logo_max_width = 'false'
+    if logo_size_raw:
+        try:
+            _h = int(logo_size_raw)
+            if 20 <= _h <= 600:
+                logo_max_height = str(_h)
+                logo_max_width = str(_h * 5)
+        except (TypeError, ValueError):
+            pass
+
     inputs_raw = {
         "server":server,
         "serverPort":serverPort,
@@ -394,6 +407,9 @@ def generate_custom_client(params, full_url):
         "privacylink_url":privacylink_url,
         "privacylink_uuid":privacylink_uuid,
         "privacylink_file":privacylink_file,
+        # 自定义 Logo 显示框尺寸（上游默认 BoxConstraints(maxWidth:300,maxHeight:60)）
+        "logo_max_width":logo_max_width,
+        "logo_max_height":logo_max_height,
         "appname":appname,
         # 界面显示名称（可中文）：只用于 UI 文案与窗口标题，
         # 不进入 app-name（安装路径/进程名/注册表等必须 ASCII）。

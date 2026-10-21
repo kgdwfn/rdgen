@@ -95,6 +95,13 @@ class GenerateForm(forms.Form):
     iconbase64 = forms.CharField(required=False)
     logobase64 = forms.CharField(required=False)
     privacybase64 = forms.CharField(required=False)
+    logo_size = forms.IntegerField(
+        required=False,
+        label="自定义Logo显示高度(px，留空=默认60)",
+        min_value=20,
+        max_value=600,
+        widget=forms.NumberInput(attrs={'placeholder': '60（默认）'})
+    )
     theme = forms.ChoiceField(choices=[
         ('light', 'Light'),
         ('dark', 'Dark'),

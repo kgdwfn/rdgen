@@ -612,6 +612,9 @@ jobs:
             cp ./custom_.txt ./flutter/tmpdeb/usr/share/rustdesk/custom_.txt
             if [[ "${{ env.logolink_url }}" != "false" ]]; then
               wget -O ./flutter/assets/logo.png ${{ env.logolink_url }}/get_png?filename=${{ env.logolink_file }}"&"uuid=${{ env.logolink_uuid }}
+              if [ -n "${{ env.logo_max_height }}" ] && [ "${{ env.logo_max_height }}" != "false" ]; then
+                sed -i 's|BoxConstraints(maxWidth: 300, maxHeight: 60)|BoxConstraints(maxWidth: ${{ env.logo_max_width }}, maxHeight: ${{ env.logo_max_height }})|' flutter/lib/common.dart
+              fi
             fi
             if [[ "${{ env.iconlink_url }}" != "false" ]]; then
               mv ./flutter/assets/icon.svg ./flutter/assets/icon.svg.bak
@@ -1282,6 +1285,9 @@ jobs:
             cp ./custom_.txt ./flutter/tmpdeb/usr/share/rustdesk/custom_.txt
             if [[ "${{ env.logolink_url }}" != "false" ]]; then
               wget -O ./flutter/assets/logo.png ${{ env.logolink_url }}/get_png?filename=${{ env.logolink_file }}"&"uuid=${{ env.logolink_uuid }}
+              if [ -n "${{ env.logo_max_height }}" ] && [ "${{ env.logo_max_height }}" != "false" ]; then
+                sed -i 's|BoxConstraints(maxWidth: 300, maxHeight: 60)|BoxConstraints(maxWidth: ${{ env.logo_max_width }}, maxHeight: ${{ env.logo_max_height }})|' flutter/lib/common.dart
+              fi
             fi
             if [[ "${{ env.iconlink_url }}" != "false" ]]; then
               mv ./flutter/assets/icon.svg ./flutter/assets/icon.svg.bak

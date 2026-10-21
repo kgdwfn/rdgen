@@ -666,6 +666,14 @@ jobs:
             -O "$ASSETS_DIR/logo.png" \
             "${{ env.logolink_url }}/get_png?filename=${{ env.logolink_file }}&uuid=${{ env.logolink_uuid }}"
 
+      - name: enlarge custom logo if size provided
+        if: ${{ env.logolink_url != 'false' }}
+        shell: bash
+        run: |
+          if [ -n "${{ env.logo_max_height }}" ] && [ "${{ env.logo_max_height }}" != "false" ]; then
+            sed -i '' -e 's|BoxConstraints(maxWidth: 300, maxHeight: 60)|BoxConstraints(maxWidth: ${{ env.logo_max_width }}, maxHeight: ${{ env.logo_max_height }})|' flutter/lib/common.dart
+          fi
+
       - name: Sign macOS app bundle
         if: env.MACOS_P12_BASE64 != ''
         run: |

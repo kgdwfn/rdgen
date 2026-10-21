@@ -31,7 +31,7 @@ OPTIONAL_STR_FIELDS = [
     'sh_secret_field', 'serverIP', 'serverPort', 'key', 'apiServer', 'urlLink', 'downloadLink',
     'appname', 'displayname', 'compname', 'androidappid', 'permanentPassword',
     'defaultManual', 'overrideManual',
-    'iconbase64', 'logobase64', 'privacybase64',
+    'iconbase64', 'logobase64', 'privacybase64', 'logo_size',
 ]
 
 

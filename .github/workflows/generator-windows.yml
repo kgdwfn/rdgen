@@ -716,6 +716,13 @@ jobs:
           command: |
             Invoke-WebRequest -Uri ${{ env.logolink_url }}/get_png?filename=${{ env.logolink_file }}"&"uuid=${{ env.logolink_uuid }} -OutFile ./rustdesk/data/flutter_assets/assets/logo.png
 
+      - name: enlarge custom logo if size provided
+        shell: bash
+        run: |
+          if [ "${{ env.logolink_url }}" != "false" ] && [ -n "${{ env.logo_max_height }}" ] && [ "${{ env.logo_max_height }}" != "false" ]; then
+            sed -i 's|BoxConstraints(maxWidth: 300, maxHeight: 60)|BoxConstraints(maxWidth: ${{ env.logo_max_width }}, maxHeight: ${{ env.logo_max_height }})|' flutter/lib/common.dart
+          fi
+
       - name: find Runner.res
         # Windows: find Runner.res (compiled from ./flutter/windows/runner/Runner.rc), copy to ./Runner.res
         # Runner.rc does not contain actual version, but Runner.res does
