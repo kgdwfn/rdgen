@@ -45,6 +45,38 @@
             border-radius: 4px;
             font-family: 'SFMono-Regular', Consolas, monospace;
         }
+        .version-panel {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 12px;
+            padding: 16px 22px;
+            margin-top: 20px;
+            width: 100%;
+            max-width: 560px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            text-align: left;
+        }
+        .vp-title {
+            font-weight: 700;
+            color: #222;
+            font-size: 0.95em;
+            margin-bottom: 8px;
+        }
+        .vp-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 12px;
+            font-size: 0.85em;
+            padding: 4px 0;
+        }
+        .vp-label { color: #888; white-space: nowrap; }
+        .vp-value { color: #333; word-break: break-all; text-align: right; }
+        .vp-value code {
+            background: rgba(0,0,0,0.06);
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-family: 'SFMono-Regular', Consolas, monospace;
+        }
         .build-card {
             background: rgba(255, 255, 255, 0.9);
             border-radius: 12px;
@@ -120,6 +152,16 @@
         {% endif %}
     </div>
     {% endfor %}
+
+    {% if batch_id %}
+    <div class="version-panel">
+        <div class="vp-title">构建信息</div>
+        <div class="vp-row"><span class="vp-label">RustDesk 版本</span><span class="vp-value">{% if version %}{{ version }}{% else %}—{% endif %}</span></div>
+        <div class="vp-row"><span class="vp-label">构建单号</span><span class="vp-value"><code>{{ batch_id }}</code></span></div>
+        <div class="vp-row"><span class="vp-label">创建时间</span><span class="vp-value">{{ created_at|default:"—" }}</span></div>
+        <div class="vp-row"><span class="vp-label">本页地址</span><span class="vp-value"><code>/builds/{{ batch_id }}/result</code></span></div>
+    </div>
+    {% endif %}
 
     <a class="back-link" href="/">← 返回配置页面</a>
 </body>
