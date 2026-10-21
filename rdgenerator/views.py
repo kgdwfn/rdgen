@@ -18,6 +18,10 @@ from .models import GithubRun
 from PIL import Image
 from urllib.parse import quote
 
+# 固定命名空间：用于按「连接类型 + 平台」派生稳定 uuid。
+# 同类型同平台跨版本重建 → 相同 uuid → 旧客户端更新地址不变，能拿到新版。
+RDGEN_UUID_NS = uuid.UUID('9f3b2c1a-7d4e-4c8a-9b6f-1e2d3c4b5a6f')
+
 # get_png, download and save_custom_client build file paths from request values;
 # only accept a UUID and a plain file name so "../" or absolute paths cannot escape png/ and exe/.
 _UUID_RE = re.compile(r'^[0-9a-fA-F-]{36}$')
@@ -48,13 +52,12 @@ def _platform_label(platform):
 def _auto_download_link(platform, uuid, filename, full_url):
     """用户未填「自定义更新下载地址」时，按平台自动拼出工具自身的下载链接。
 
-    - Windows / Windows-x86：直接指向本次构建的 exe 文件，客户端点「检查更新」即可下载。
-    - 多架构平台（Linux / Android / macOS）：构建时无法预知最终设备 CPU 架构，
-      给不出单一 arch 的具体文件 URL，故指向工具首页，由用户/客户端重新获取。
+    仅带 uuid + platform，**不带具体 filename**：后端 download 视图会按 uuid 目录下的
+    真实文件名 + platform 后缀匹配主包，从而彻底摆脱对 exename(文件名) 的依赖——
+    用户构建时填什么文件名，点更新都能拿到当前目录下的正确包（旧客户端同理）。
+    多架构平台（Linux / Android / macOS）也借此精确指向该 uuid 的包列表，而非裸首页。
     """
-    if platform in ('windows', 'windows-x86'):
-        return f"{full_url}/download?uuid={uuid}&filename={filename}.exe"
-    return full_url
+    return f"{full_url}/download?uuid={uuid}&platform={platform}"
 
 
 def _download_links_for(platform, uuid, filename):
@@ -82,6 +85,22 @@ def _download_links_for(platform, uuid, filename):
     else:
         names = []
     return [{'url': f"{base}{n}", 'name': n} for n in names]
+
+
+def _platform_suffixes(platform):
+    """返回某平台构建产物的文件名后缀集合，用于 download 视图按 uuid 目录解析主包。
+
+    与 _download_links_for 的后缀规律对应，但此处仅用于「无 filename 时从目录真实文件反推」。
+    """
+    if platform in ('windows', 'windows-x86'):
+        return ('.exe', '.msi')
+    if platform == 'linux':
+        return ('.deb', '.rpm', '.AppImage', '.flatpak', '.pkg.tar.zst', '.zip', '.tar.gz', '.tar.xz')
+    if platform == 'android':
+        return ('.apk',)
+    if platform == 'macos':
+        return ('.dmg', '.pkg', '.zip')
+    return ()
 
 
 def generate_custom_client(params, full_url):
@@ -187,7 +206,9 @@ def generate_custom_client(params, full_url):
         filename = "rustdesk"
     if not all(char.isascii() for char in appname):
         appname = "rustdesk"
-    myuuid = str(uuid.uuid4())
+    # 按「连接类型 + 平台」派生稳定 uuid：同类型同平台跨版本重建 → 相同 uuid，
+    # 旧客户端更新地址不变、能拿到新版；不同类型/平台自然隔离。
+    myuuid = str(uuid.uuid5(RDGEN_UUID_NS, f"{direction}|{platform}"))
 
     # 用户未填更新下载地址时，按平台自动拼出「工具域名 + 构建产物」作为更新链接
     effective_download_link = downloadLink
@@ -621,18 +642,59 @@ def check_for_file(request):
         })
 
 def download(request):
-    filename = request.GET['filename']
-    uuid = request.GET['uuid']
-    if not _safe_parts(uuid, filename):
-        return HttpResponseForbidden("Invalid filename")
-    file_path = os.path.join('exe', uuid, filename)
-    with open(file_path, 'rb') as file:
-        content = file.read()
-    response = HttpResponse(content, headers={
-        'Content-Type': 'application/vnd.microsoft.portable-executable',
-        'Content-Disposition': f'attachment; filename="{filename}"'
+    uuid = request.GET.get('uuid', '')
+    filename = request.GET.get('filename', '')
+    platform = request.GET.get('platform', '')
+
+    # 1) 旧链接格式（带具体 filename）：保持原逻辑，兼容历史包
+    if filename:
+        if not _safe_parts(uuid, filename):
+            return HttpResponseForbidden("Invalid filename")
+        file_path = os.path.join('exe', uuid, filename)
+        if not os.path.isfile(file_path):
+            from django.http import Http404
+            raise Http404("File not found")
+        with open(file_path, 'rb') as file:
+            content = file.read()
+        return HttpResponse(content, headers={
+            'Content-Type': 'application/vnd.microsoft-portable-executable',
+            'Content-Disposition': f'attachment; filename="{filename}"'
+        })
+
+    # 2) 新格式：仅 uuid + platform，按目录下真实文件 + platform 后缀解析主包
+    #    （彻底摆脱对 exename/文件名的依赖：用户构建填什么文件名都不影响更新）
+    if not uuid or not platform:
+        return HttpResponseForbidden("Missing uuid or platform")
+    if not _safe_parts(uuid, None):
+        return HttpResponseForbidden("Invalid uuid")
+    exe_dir = os.path.join('exe', uuid)
+    if not os.path.isdir(exe_dir):
+        from django.http import Http404
+        raise Http404("Build not found")
+    suffixes = _platform_suffixes(platform)
+    candidates = sorted(f for f in os.listdir(exe_dir) if any(f.endswith(s) for s in suffixes))
+    if not candidates:
+        from django.http import Http404
+        raise Http404("No package for this platform")
+    if len(candidates) == 1:
+        # 单包（如 Windows 的 exe）→ 直接下载当前目录下的真实文件
+        fn = candidates[0]
+        file_path = os.path.join(exe_dir, fn)
+        with open(file_path, 'rb') as file:
+            content = file.read()
+        return HttpResponse(content, headers={
+            'Content-Type': 'application/vnd.microsoft-portable-executable',
+            'Content-Disposition': f'attachment; filename="{fn}"'
+        })
+    # 多架构（Linux / Android / macOS）→ 列表页让用户/客户端选择
+    base = f"/download?uuid={uuid}&filename="
+    files = [{'url': f"{base}{quote(f)}", 'name': f} for f in candidates]
+    return render(request, 'download_list.html', {
+        'uuid': uuid,
+        'platform': platform,
+        'platform_label': _platform_label(platform),
+        'files': files,
     })
-    return response
 
 
 def check_builds(request):
