@@ -19,7 +19,31 @@
         h2 {
             color: #333;
             font-weight: 600;
+            margin-bottom: 12px;
+        }
+        .version-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            color: #fff;
+            font-weight: 700;
+            font-size: 1.05em;
+            padding: 6px 18px;
+            border-radius: 999px;
             margin-bottom: 24px;
+            box-shadow: 0 4px 12px rgba(52,152,219,0.35);
+            letter-spacing: 0.5px;
+        }
+        .batch-meta {
+            color: #888;
+            font-size: 0.82em;
+            margin: -14px 0 24px;
+            word-break: break-all;
+        }
+        .batch-meta code {
+            background: rgba(0,0,0,0.06);
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-family: 'SFMono-Regular', Consolas, monospace;
         }
         .build-card {
             background: rgba(255, 255, 255, 0.9);
@@ -76,6 +100,8 @@
 </head>
 <body>
     <h2>构建结果</h2>
+    {% if version %}<div class="version-badge">RustDesk {{ version }}</div>{% endif %}
+    {% if batch_id %}<div class="batch-meta">构建单号 <code>{{ batch_id|slice:":8" }}</code>{% if created_at %} · {{ created_at }}{% endif %}</div>{% endif %}
 
     {% for b in builds %}
     <div class="build-card">

@@ -27,6 +27,30 @@
             font-size: 0.9em;
             margin-bottom: 24px;
         }
+        .version-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            color: #fff;
+            font-weight: 700;
+            font-size: 1.05em;
+            padding: 6px 18px;
+            border-radius: 999px;
+            margin-bottom: 8px;
+            box-shadow: 0 4px 12px rgba(52,152,219,0.35);
+            letter-spacing: 0.5px;
+        }
+        .batch-meta {
+            color: #888;
+            font-size: 0.82em;
+            margin-top: 6px;
+            word-break: break-all;
+        }
+        .batch-meta code {
+            background: rgba(0,0,0,0.06);
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-family: 'SFMono-Regular', Consolas, monospace;
+        }
         .build-card {
             background: rgba(255, 255, 255, 0.85);
             border-radius: 12px;
@@ -79,7 +103,9 @@
 </head>
 <body>
     <h2>构建进行中</h2>
+    {% if version %}<div class="version-badge">RustDesk {{ version }}</div>{% endif %}
     <div class="subtitle">共 {{ builds|length }} 个平台，整个过程大约需要 30–45 分钟。此页面会自动刷新。</div>
+    {% if batch_id %}<div class="batch-meta">构建单号 <code>{{ batch_id|slice:":8" }}</code>{% if created_at %} · {{ created_at }}{% endif %} · 本页地址可收藏，随时回看</div>{% endif %}
     <div class="loading-spinner"></div>
 
     <div id="builds">
@@ -95,9 +121,7 @@
     </div>
 
     <script>
-        const UUIDS = "{{ uuids }}";
-        const PLATFORMS = "{{ platforms }}";
-        const FILENAMES = "{{ filenames }}";
+        const BATCH_ID = "{{ batch_id }}";
 
         const STATUS_ZH = {
             'queued': '排队中', 'requested': '等待调度', 'waiting': '等待调度',
@@ -120,12 +144,12 @@
         }
 
         function poll() {
-            fetch(`/check_builds?uuids=${encodeURIComponent(UUIDS)}&platforms=${encodeURIComponent(PLATFORMS)}&filenames=${encodeURIComponent(FILENAMES)}`)
+            fetch(`/builds/${BATCH_ID}/status`)
                 .then(r => r.json())
                 .then(data => {
                     data.builds.forEach(applyStatus);
                     if (data.all_terminal) {
-                        window.location.href = `/builds_result?uuids=${encodeURIComponent(UUIDS)}&platforms=${encodeURIComponent(PLATFORMS)}&filenames=${encodeURIComponent(FILENAMES)}`;
+                        window.location.href = `/builds/${BATCH_ID}/result`;
                     }
                 })
                 .catch(() => {});

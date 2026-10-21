@@ -1,7 +1,8 @@
 import io
+import datetime
 from pathlib import Path
 from django.http import HttpResponse, JsonResponse, HttpResponseForbidden
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render, get_object_or_404, redirect
 from django.core.files.base import ContentFile
 import os
 import secrets
@@ -47,6 +48,70 @@ _PLATFORM_LABELS = {
 
 def _platform_label(platform):
     return _PLATFORM_LABELS.get(platform, platform)
+
+
+# ── 多平台构建批次（batch）────────────────────────────────────────────────
+# 每次提交构建生成一个 batch_id，等待页地址变成 /builds/<batch_id>，因此每次构建
+# 地址都不同；刷新、收藏、换设备打开都能还原（不会退回 /generator）。
+# 元数据落盘 exe/_batches/<batch_id>.json，与 exe/{uuid}/{file} 的文件式存储一致，
+# 无需数据库迁移。
+_BATCH_DIR = os.path.join('exe', '_batches')
+_BATCH_ID_RE = re.compile(r'^[0-9a-f]{32}$')
+
+# GitHub run 的终态
+_TERMINAL_STATUSES = ('success', 'failure', 'cancelled', 'timed_out', 'skipped', 'action_required')
+
+
+def _new_batch_id():
+    return uuid.uuid4().hex
+
+
+def _batch_path(batch_id):
+    return os.path.join(_BATCH_DIR, f"{batch_id}.json")
+
+
+def _save_batch(batch):
+    os.makedirs(_BATCH_DIR, exist_ok=True)
+    with open(_batch_path(batch['batch_id']), 'w', encoding='utf-8') as f:
+        json.dump(batch, f, ensure_ascii=False, indent=2)
+
+
+def _load_batch(batch_id):
+    """读取批次元数据；batch_id 非法或文件不存在返回 None。"""
+    if not batch_id or not _BATCH_ID_RE.match(batch_id):
+        return None
+    path = _batch_path(batch_id)
+    if not os.path.isfile(path):
+        return None
+    try:
+        with open(path, encoding='utf-8') as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def _batch_status(batch):
+    """按批次汇总各平台实时状态、日志链接与（终态时的）下载链接。"""
+    builds = []
+    all_terminal = True
+    for b in batch.get('builds', []):
+        platform = b.get('platform', '')
+        filename = b.get('filename', '')
+        st = _get_run_status(b.get('uuid', ''))
+        status = st['status'] if st.get('found') else 'unknown'
+        terminal = status in _TERMINAL_STATUSES
+        if not terminal:
+            all_terminal = False
+        builds.append({
+            'uuid': b.get('uuid', ''),
+            'platform': platform,
+            'platform_label': b.get('platform_label') or _platform_label(platform),
+            'filename': filename,
+            'status': status,
+            'log_url': st.get('github_log_url') or b.get('log_url', ''),
+            'links': _download_links_for(platform, b.get('uuid', ''), filename) if terminal else [],
+        })
+    return {'builds': builds, 'all_terminal': all_terminal}
 
 
 def _auto_download_link(platform, uuid, filename, full_url):
@@ -588,13 +653,25 @@ def generator_view(request):
                     builds.append(res)
             if not builds:
                 return JsonResponse({"error": "所有平台构建均失败，请检查配置后重试。"}, status=500)
-            # 统一走多构建等待 / 结果流程（单平台同样适用）
-            return render(request, 'multi_wait.html', {
-                'builds': builds,
-                'uuids': ",".join(b['uuid'] for b in builds),
-                'platforms': ",".join(b['platform'] for b in builds),
-                'filenames': ",".join(b['filename'] for b in builds),
+            # 生成批次号并落盘，随后 302 到 /builds/<batch_id>：
+            # 每次构建地址都不同，刷新/收藏/换设备都能回到这次构建。
+            batch_id = _new_batch_id()
+            _save_batch({
+                'batch_id': batch_id,
+                'version': params.get('version') or '1.4.9',
+                'created_at': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'builds': [
+                    {
+                        'uuid': b['uuid'],
+                        'platform': b['platform'],
+                        'platform_label': b.get('platform_label') or _platform_label(b['platform']),
+                        'filename': b['filename'],
+                        'log_url': b.get('log_url', ''),
+                    }
+                    for b in builds
+                ],
             })
+            return redirect(f'/builds/{batch_id}')
         else:
             form = GenerateForm(request.POST, request.FILES)
     else:
@@ -746,6 +823,43 @@ def builds_result(request):
             'links': _download_links_for(plat, u, fname),
         })
     return render(request, 'multi_result.html', {'builds': builds})
+
+
+def builds_view(request, batch_id):
+    """单次构建批次的等待页：地址 /builds/<batch_id>，每次构建都不同。"""
+    batch = _load_batch(batch_id)
+    if not batch:
+        from django.http import Http404
+        raise Http404("构建批次不存在或已过期")
+    return render(request, 'multi_wait.html', {
+        'batch_id': batch_id,
+        'version': batch.get('version', ''),
+        'created_at': batch.get('created_at', ''),
+        'builds': batch.get('builds', []),
+    })
+
+
+def builds_status(request, batch_id):
+    """等待页轮询接口：按批次返回各平台实时状态与下载链接（JSON）。"""
+    batch = _load_batch(batch_id)
+    if not batch:
+        return JsonResponse({'error': 'build batch not found'}, status=404)
+    return JsonResponse(_batch_status(batch))
+
+
+def builds_result_view(request, batch_id):
+    """单次构建批次的最终结果页：地址 /builds/<batch_id>/result。"""
+    batch = _load_batch(batch_id)
+    if not batch:
+        from django.http import Http404
+        raise Http404("构建批次不存在或已过期")
+    status = _batch_status(batch)
+    return render(request, 'multi_result.html', {
+        'batch_id': batch_id,
+        'version': batch.get('version', ''),
+        'created_at': batch.get('created_at', ''),
+        'builds': status['builds'],
+    })
 
 
 def get_png(request):

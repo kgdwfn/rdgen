@@ -2,7 +2,7 @@ import json
 import re
 from django.http import JsonResponse
 from django.conf import settings as _settings
-from .views import generate_custom_client, _get_run_status, _platform_label
+from .views import generate_custom_client, _get_run_status, _platform_label, _new_batch_id, _save_batch
 
 
 # Field validation constraints (mirrored from GenerateForm)
@@ -167,9 +167,29 @@ def api_generate(request):
 
     if not builds:
         return JsonResponse({"success": False, "error": "所有平台构建均失败"}, status=500)
+    # 记录批次，便于通过 /builds/<id> 回看（与 web 表单一致）
+    import datetime
+    batch_id = _new_batch_id()
+    _save_batch({
+        'batch_id': batch_id,
+        'version': cleaned.get('version') or '1.4.9',
+        'created_at': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'builds': [
+            {
+                'uuid': b['uuid'],
+                'platform': b['platform'],
+                'platform_label': b.get('platform_label') or _platform_label(b['platform']),
+                'filename': b['filename'],
+                'log_url': b.get('log_url', ''),
+            }
+            for b in builds
+        ],
+    })
     if len(builds) == 1:
-        return JsonResponse(builds[0])
-    return JsonResponse({"success": True, "multi": True, "builds": builds})
+        r = dict(builds[0])
+        r['batch_url'] = f'/builds/{batch_id}'
+        return JsonResponse(r)
+    return JsonResponse({"success": True, "multi": True, "batch_url": f'/builds/{batch_id}', "builds": builds})
 
 
 def api_status(request):
