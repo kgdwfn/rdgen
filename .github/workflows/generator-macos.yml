@@ -170,6 +170,16 @@ jobs:
           sed -i '' -e "s|: bind.mainGetAppNameSync(),|: '${DISPLAY_NAME}',|" ./flutter/lib/main.dart
           sed -i '' -e "s|final name = bind.mainGetAppNameSync();|final name = '${DISPLAY_NAME}';|" ./flutter/lib/common.dart
 
+      - name: hide settings gear in outgoing-only
+        # 仅主控(isOutgoingOnly)模式桌面端 UI 会在左下角渲染一个设置齿轮。
+        # 该齿轮在 RustDesk 源码里只由 isOutgoingOnly 控制，没接“禁用设置”开关
+        # (disable-settings 仅控制“修改密码”图标)。这里把它与“禁用设置”联动：
+        # 仅主控 + 已禁用设置 -> 齿轮消失；仅主控 + 未禁用 -> 仍显示(可进设置)。
+        # 双向(both)模式 isOutgoingOnly 为 false，齿轮本就不渲染，此改动无副作用。
+        shell: bash
+        run: |
+          sed -i '' -e 's|^            if (isOutgoingOnly)$|            if (isOutgoingOnly \&\& !bind.isDisableSettings())|' ./flutter/lib/desktop/pages/desktop_home_page.dart
+
       - name: Update macOS Info.plist and settings
         continue-on-error: false
         shell: bash

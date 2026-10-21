@@ -282,6 +282,16 @@ jobs:
           sed -i "s|: bind.mainGetAppNameSync(),|: '${DISPLAY_NAME}',|" ./flutter/lib/main.dart
           sed -i "s|final name = bind.mainGetAppNameSync();|final name = '${DISPLAY_NAME}';|" ./flutter/lib/common.dart
 
+      - name: hide settings gear in outgoing-only
+        # 仅主控(isOutgoingOnly)模式桌面端 UI 会在左下角渲染一个设置齿轮。
+        # 该齿轮在 RustDesk 源码里只由 isOutgoingOnly 控制，没接“禁用设置”开关
+        # (disable-settings 仅控制“修改密码”图标)。这里把它与“禁用设置”联动：
+        # 仅主控 + 已禁用设置 -> 齿轮消失；仅主控 + 未禁用 -> 仍显示(可进设置)。
+        # 双向(both)模式 isOutgoingOnly 为 false，齿轮本就不渲染，此改动无副作用。
+        shell: bash
+        run: |
+          sed -i 's|^            if (isOutgoingOnly)$|            if (isOutgoingOnly \&\& !bind.isDisableSettings())|' ./flutter/lib/desktop/pages/desktop_home_page.dart
+
       - name: change appname to custom
         if: env.appname != 'rustdesk'
         continue-on-error: true
@@ -982,6 +992,16 @@ jobs:
           find ./src/lang -name "*.rs" -exec sed -i "s|RustDesk|${DISPLAY_NAME}|g" {} \;
           sed -i "s|: bind.mainGetAppNameSync(),|: '${DISPLAY_NAME}',|" ./flutter/lib/main.dart
           sed -i "s|final name = bind.mainGetAppNameSync();|final name = '${DISPLAY_NAME}';|" ./flutter/lib/common.dart
+
+      - name: hide settings gear in outgoing-only
+        # 仅主控(isOutgoingOnly)模式桌面端 UI 会在左下角渲染一个设置齿轮。
+        # 该齿轮在 RustDesk 源码里只由 isOutgoingOnly 控制，没接“禁用设置”开关
+        # (disable-settings 仅控制“修改密码”图标)。这里把它与“禁用设置”联动：
+        # 仅主控 + 已禁用设置 -> 齿轮消失；仅主控 + 未禁用 -> 仍显示(可进设置)。
+        # 双向(both)模式 isOutgoingOnly 为 false，齿轮本就不渲染，此改动无副作用。
+        shell: bash
+        run: |
+          sed -i 's|^            if (isOutgoingOnly)$|            if (isOutgoingOnly \&\& !bind.isDisableSettings())|' ./flutter/lib/desktop/pages/desktop_home_page.dart
 
       - name: change appname to custom
         if: env.appname != 'rustdesk'
