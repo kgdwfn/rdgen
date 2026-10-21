@@ -374,6 +374,30 @@ jobs:
           sed -i -e 's|if (bind.isCustomClient())|// custom: powered-by always shown|' ./flutter/lib/mobile/pages/settings_page.dart
           sed -i -e 's|?.copyWith(fontSize: 9, decoration: TextDecoration.underline)|?.copyWith(fontSize: 14, decoration: TextDecoration.underline)|' ./flutter/lib/common.dart
 
+      - name: apply display name
+        # 界面显示名称（可中文）：只影响 UI 文案与窗口标题。
+        # 1) lang 文件里所有 "RustDesk" 换成显示名 —— 运行时 Rust 侧的
+        #    s.replace("RustDesk", &app_name) 便不再匹配，界面保持构建期注入的中文。
+        # 2) Dart 窗口标题（main.dart 的 title、common.dart 的 getWindowName）
+        #    直接用显示名 —— 它们取的是 APP_NAME（= app-name，必须 ASCII）。
+        # 必须置于 change appname to custom 之前：后者会把 lang 里剩余的
+        # "RustDesk" 换成 appname，先做本步则后者自动 no-op。
+        shell: bash
+        run: |
+          DISPLAY_NAME="${{ env.displayname }}"
+          if [ -z "$DISPLAY_NAME" ]; then
+            # 未填界面显示名称：回落到应用名称；应用名称也为空(默认 rustdesk)时
+            # 保持 "RustDesk"，这样 lang 文件与窗口标题都维持上游原样。
+            if [ -z "${{ env.appname }}" ] || [ "${{ env.appname }}" = "rustdesk" ]; then
+              DISPLAY_NAME="RustDesk"
+            else
+              DISPLAY_NAME="${{ env.appname }}"
+            fi
+          fi
+          find ./src/lang -name "*.rs" -exec sed -i "s|RustDesk|${DISPLAY_NAME}|g" {} \;
+          sed -i "s|: bind.mainGetAppNameSync(),|: '${DISPLAY_NAME}',|" ./flutter/lib/main.dart
+          sed -i "s|final name = bind.mainGetAppNameSync();|final name = '${DISPLAY_NAME}';|" ./flutter/lib/common.dart
+
       - name: change appname to custom
         if: env.appname != 'rustdesk'
         continue-on-error: true

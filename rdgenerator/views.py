@@ -176,12 +176,16 @@ def generate_custom_client(params, full_url):
         decodedCustom['disable-installation'] = 'Y'
     if settings == "settingsN":
         decodedCustom['disable-settings'] = 'Y'
-    # app-name 决定运行时 APP_NAME -> 标题栏、界面文案里的 RustDesk 字样、
-    # 以及 is_custom_client()（APP_NAME != "RustDesk"）。
-    # displayname 优先（可中文）；留空则回落到 appname，保持原有行为。
-    runtime_appname = displayname or appname
-    if runtime_appname.upper() != "rustdesk".upper() and runtime_appname != "":
+    # app-name 决定运行时 APP_NAME -> 安装路径(C:\Program Files\<名>)、开始菜单目录、
+    # 安装后的 exe 名、进程名、URI 前缀、注册表键，必须是纯 ASCII，
+    # 否则自解压安装器会装不上（x86 走 target_pointer_width=32 分支变成 Program Files (x86)）。
+    # 所以这里固定写 ASCII 的 appname；中文显示名走 display-name 键，
+    # 由构建期的 lang 替换与 Dart 标题注入负责。
+    runtime_appname = appname if appname else "rustdesk"
+    if runtime_appname != "":
         decodedCustom['app-name'] = runtime_appname
+    if displayname:
+        decodedCustom['display-name'] = displayname
     decodedCustom['override-settings'] = {}
     decodedCustom['default-settings'] = {}
 
@@ -334,6 +338,9 @@ def generate_custom_client(params, full_url):
         "privacylink_uuid":privacylink_uuid,
         "privacylink_file":privacylink_file,
         "appname":appname,
+        # 界面显示名称（可中文）：只用于 UI 文案与窗口标题，
+        # 不进入 app-name（安装路径/进程名/注册表等必须 ASCII）。
+        "displayname":displayname,
         "genurl":_settings.GENURL,
         "urlLink":urlLink,
         "downloadLink":downloadLink,
