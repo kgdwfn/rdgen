@@ -243,13 +243,20 @@ jobs:
           sed -i -e "s|<div .link .custom-event url='https://rustdesk.com/privacy.html'>|<div .link .custom-event url='${{ env.urlLink }}/privacy.html'>|" ./src/ui/index.tis
           if [ -f ./res/setup.nsi ]; then sed -i -e "s|https://rustdesk.com/|${{env.urlLink }}|" ./res/setup.nsi; else echo "res/setup.nsi not present in this rustdesk version, skipped"; fi
 
+      - name: escape download link for sed
+        shell: bash
+        run: |
+          raw='${{ env.downloadLink }}'
+          esc=$(printf '%s' "$raw" | sed 's/[\\&]/\\&/g')
+          printf 'DOWNLOAD_LINK_SED=%s\n' "$esc" >> "$GITHUB_ENV"
+
       - name: change download link to custom
         if: env.downloadLink != 'https://rustdesk.com/download'
         continue-on-error: true
         shell: bash
         run: |
-          sed -i -e 's|https://rustdesk.com/download|${{ env.downloadLink }}|' ./src/ui/index.tis
-          sed -i -e 's|&download_url|"${{ env.downloadLink }}"|' ./src/updater.rs
+          sed -i -e 's|https://rustdesk.com/download|${{ env.DOWNLOAD_LINK_SED }}|' ./src/ui/index.tis
+          sed -i -e 's|&download_url|"${{ env.DOWNLOAD_LINK_SED }}"|' ./src/updater.rs
 
       - name: custom update flow - show card and open browser on click (sciter)
         if: env.downloadLink != 'https://rustdesk.com/download'
@@ -449,6 +456,7 @@ jobs:
         id: build
         shell: bash
         run: |
+          sed -i "s|open('src/ui/index.tis').read()|open('src/ui/index.tis', encoding='utf-8').read()|" res/inline-sciter.py
           python3 res/inline-sciter.py
           # Patch sciter x86
           sed -i 's/branch = "dyn"/branch = "dyn_x86"/g' ./Cargo.toml
