@@ -247,7 +247,7 @@ jobs:
         continue-on-error: true
         shell: bash
         run: |
-          find ./src/lang -name "*.rs" -exec sed -i '/powered_by_me/s|RustDesk|${{ env.compname }}|g' {} \;
+          find ./src/lang -name "*.rs" -exec sed -i -E '/"powered_by_me"/s|, "[^"]*"|, "'"${{ env.compname }}"'"|' {} \;
 
       - name: always show powered-by
         # appname 留空或中文时 custom_.txt 无 app-name -> isCustomClient()=false
@@ -958,7 +958,7 @@ jobs:
         continue-on-error: true
         shell: bash
         run: |
-          find ./src/lang -name "*.rs" -exec sed -i '/powered_by_me/s|RustDesk|${{ env.compname }}|g' {} \;
+          find ./src/lang -name "*.rs" -exec sed -i -E '/"powered_by_me"/s|, "[^"]*"|, "'"${{ env.compname }}"'"|' {} \;
 
       - name: always show powered-by
         # appname 留空或中文时 custom_.txt 无 app-name -> isCustomClient()=false

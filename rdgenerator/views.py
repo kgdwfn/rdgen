@@ -31,6 +31,59 @@ def _safe_parts(uuid_val, filename):
     return True
 
 
+# 平台中文标签（用于多构建结果页展示）
+_PLATFORM_LABELS = {
+    'windows': 'Windows 64 位',
+    'windows-x86': 'Windows 32 位',
+    'linux': 'Linux',
+    'android': 'Android',
+    'macos': 'macOS',
+}
+
+
+def _platform_label(platform):
+    return _PLATFORM_LABELS.get(platform, platform)
+
+
+def _auto_download_link(platform, uuid, filename, full_url):
+    """用户未填「自定义更新下载地址」时，按平台自动拼出工具自身的下载链接。
+
+    - Windows / Windows-x86：直接指向本次构建的 exe 文件，客户端点「检查更新」即可下载。
+    - 多架构平台（Linux / Android / macOS）：构建时无法预知最终设备 CPU 架构，
+      给不出单一 arch 的具体文件 URL，故指向工具首页，由用户/客户端重新获取。
+    """
+    if platform in ('windows', 'windows-x86'):
+        return f"{full_url}/download?uuid={uuid}&filename={filename}.exe"
+    return full_url
+
+
+def _download_links_for(platform, uuid, filename):
+    """返回某平台构建产物的全部下载链接（与 generated.html / failure.html 的文件名规律一致）。
+
+    每项形如 {'url': '/download?uuid=...&filename=...', 'name': '文件名'}，便于结果页展示。
+    """
+    base = f"/download?uuid={uuid}&filename="
+    if platform == 'windows':
+        names = [f"{filename}.exe", f"{filename}.msi"]
+    elif platform == 'windows-x86':
+        names = [f"{filename}.exe"]
+    elif platform == 'linux':
+        suffixes = [
+            "x86_64.deb", "unattended-wayland-x86_64.deb", "x86_64.rpm",
+            "suse-x86_64.rpm", "x86_64.pkg.tar.zst", "aarch64.deb",
+            "aarch64.rpm", "suse-aarch64.rpm", "aarch64.pkg.tar.zst",
+            "x86_64.AppImage", "aarch64.AppImage", "x86_64.flatpak", "aarch64.flatpak",
+        ]
+        names = [f"{filename}-{s}" for s in suffixes]
+    elif platform == 'android':
+        names = [f"{filename}-{s}" for s in ("aarch64.apk", "x86_64.apk", "armv7.apk")]
+    elif platform == 'macos':
+        names = [f"{filename}-{s}" for s in ("x86_64.dmg", "aarch64.dmg")]
+    else:
+        names = []
+    return [{'url': f"{base}{n}", 'name': n} for n in names]
+
+
 def generate_custom_client(params, full_url):
     """
     Core generation logic shared by web form and JSON API.
@@ -67,8 +120,7 @@ def generate_custom_client(params, full_url):
         apiServer = server+":21114"
     if not urlLink:
         urlLink = "https://rustdesk.com"
-    if not downloadLink:
-        downloadLink = "https://rustdesk.com/download"
+    # 若用户未填更新地址，则在下方按平台自动生成（见 _auto_download_link），不在此给默认。
     direction = params.get('direction', 'both')
     installation = params.get('installation', 'installationY')
     settings = params.get('settings', 'settingsY')
@@ -136,6 +188,11 @@ def generate_custom_client(params, full_url):
     if not all(char.isascii() for char in appname):
         appname = "rustdesk"
     myuuid = str(uuid.uuid4())
+
+    # 用户未填更新下载地址时，按平台自动拼出「工具域名 + 构建产物」作为更新链接
+    effective_download_link = downloadLink
+    if not effective_download_link:
+        effective_download_link = _auto_download_link(platform, myuuid, filename, full_url)
 
     try:
         iconfile = params.get('iconfile')
@@ -343,7 +400,7 @@ def generate_custom_client(params, full_url):
         "displayname":displayname,
         "genurl":_settings.GENURL,
         "urlLink":urlLink,
-        "downloadLink":downloadLink,
+        "downloadLink":effective_download_link,
         "delayFix": 'true' if delayFix else 'false',
         "rdgen":'true',
         "xOffline": 'true' if xOffline else 'false',
@@ -482,17 +539,27 @@ def generator_view(request):
         if form.is_valid():
             params = form.cleaned_data
             full_url = f"{_settings.PROTOCOL}://{request.get_host()}" if _settings.GENURL else f"{_settings.PROTOCOL}://{request.get_host()}"
-            result = generate_custom_client(params, full_url)
-            if result['success']:
-                return render(request, 'waiting.html', {
-                    'filename': result['filename'],
-                    'uuid': result['uuid'],
-                    'status': "正在启动构建，请稍候…",
-                    'platform': result['platform'],
-                    'log_url': result['log_url']
-                })
-            else:
-                return JsonResponse({"error": result['error']}, status=result.get('status_code', 500))
+            # 平台多选：每个平台独立构建、各自 uuid 与下载链接
+            platforms = params.get('platform') or ['windows']
+            builds = []
+            for p in platforms:
+                single = dict(params)
+                single['platform'] = p
+                res = generate_custom_client(single, full_url)
+                if res.get('success'):
+                    res['platform_label'] = _platform_label(res['platform'])
+                    builds.append(res)
+            if not builds:
+                return JsonResponse({"error": "所有平台构建均失败，请检查配置后重试。"}, status=500)
+            # 统一走多构建等待 / 结果流程（单平台同样适用）
+            return render(request, 'multi_wait.html', {
+                'builds': builds,
+                'uuids': ",".join(b['uuid'] for b in builds),
+                'platforms': ",".join(b['platform'] for b in builds),
+                'filenames': ",".join(b['filename'] for b in builds),
+            })
+        else:
+            form = GenerateForm(request.POST, request.FILES)
     else:
         form = GenerateForm()
     #return render(request, 'maintenance.html')
@@ -550,6 +617,58 @@ def download(request):
         'Content-Disposition': f'attachment; filename="{filename}"'
     })
     return response
+
+
+def check_builds(request):
+    """多构建状态轮询：返回每个 uuid 的构建状态与下载链接（JSON）。"""
+    uuids = [u for u in request.GET.get('uuids', '').split(',') if u]
+    platforms = request.GET.get('platforms', '').split(',')
+    filenames = request.GET.get('filenames', '').split(',')
+    builds = []
+    all_terminal = True
+    for i, u in enumerate(uuids):
+        plat = platforms[i] if i < len(platforms) else ''
+        fname = filenames[i] if i < len(filenames) else ''
+        st = _get_run_status(u)
+        status = st['status'] if st['found'] else 'unknown'
+        terminal = status in ('success', 'failure', 'cancelled', 'timed_out', 'skipped', 'action_required')
+        if not terminal:
+            all_terminal = False
+        links = _download_links_for(plat, u, fname) if terminal else []
+        builds.append({
+            'uuid': u,
+            'platform': plat,
+            'platform_label': _platform_label(plat),
+            'filename': fname,
+            'status': status,
+            'log_url': st.get('github_log_url', ''),
+            'links': links,
+        })
+    return JsonResponse({'builds': builds, 'all_terminal': all_terminal})
+
+
+def builds_result(request):
+    """多构建最终结果页：列出每个平台产物下载链接。"""
+    uuids = [u for u in request.GET.get('uuids', '').split(',') if u]
+    platforms = request.GET.get('platforms', '').split(',')
+    filenames = request.GET.get('filenames', '').split(',')
+    builds = []
+    for i, u in enumerate(uuids):
+        plat = platforms[i] if i < len(platforms) else ''
+        fname = filenames[i] if i < len(filenames) else ''
+        st = _get_run_status(u)
+        status = st['status'] if st['found'] else 'unknown'
+        builds.append({
+            'uuid': u,
+            'platform': plat,
+            'platform_label': _platform_label(plat),
+            'filename': fname,
+            'status': status,
+            'log_url': st.get('github_log_url', ''),
+            'links': _download_links_for(plat, u, fname),
+        })
+    return render(request, 'multi_result.html', {'builds': builds})
+
 
 def get_png(request):
     filename = request.GET['filename']

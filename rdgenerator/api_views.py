@@ -2,7 +2,7 @@ import json
 import re
 from django.http import JsonResponse
 from django.conf import settings as _settings
-from .views import generate_custom_client, _get_run_status
+from .views import generate_custom_client, _get_run_status, _platform_label
 
 
 # Field validation constraints (mirrored from GenerateForm)
@@ -67,7 +67,6 @@ def validate_generate_params(data):
 
     # Choice fields
     choice_validations = {
-        'platform': (PLATFORM_CHOICES, 'windows'),
         'version': (VERSION_CHOICES, '1.4.9'),
         'direction': (DIRECTION_CHOICES, 'both'),
         'installation': (INSTALLATION_CHOICES, 'installationY'),
@@ -84,6 +83,18 @@ def validate_generate_params(data):
             errors[field] = f'Invalid choice. Must be one of: {choices}'
         else:
             cleaned[field] = value
+
+    # platform: now a list (multi-select). Validate every entry against the whitelist.
+    plat = data.get('platform', ['windows'])
+    if isinstance(plat, str):
+        plat = [plat]
+    if not isinstance(plat, list):
+        plat = [plat] if plat else []
+    invalid = [p for p in plat if p not in PLATFORM_CHOICES]
+    if invalid:
+        errors['platform'] = f'Invalid platform(s): {invalid}. Must be a subset of {PLATFORM_CHOICES}.'
+    else:
+        cleaned['platform'] = plat
 
     # Boolean fields
     for field in BOOL_FIELDS:
@@ -143,14 +154,22 @@ def api_generate(request):
     # Build full_url the same way as generator_view
     full_url = f"{_settings.PROTOCOL}://{request.get_host()}" if _settings.GENURL else f"{_settings.PROTOCOL}://{request.get_host()}"
 
-    result = generate_custom_client(cleaned, full_url)
+    platforms = cleaned.get('platform') or ['windows']
+    builds = []
+    for p in platforms:
+        single = dict(cleaned)
+        single['platform'] = p
+        res = generate_custom_client(single, full_url)
+        if res.get('success'):
+            res['status_url'] = f"/api/status?uuid={res['uuid']}&platform={res['platform']}&filename={res['filename']}"
+            res['platform_label'] = _platform_label(res['platform'])
+            builds.append(res)
 
-    if result['success']:
-        # Add convenience URLs for the API consumer
-        result['status_url'] = f"/api/status?uuid={result['uuid']}&platform={result['platform']}&filename={result['filename']}"
-        return JsonResponse(result)
-    else:
-        return JsonResponse({"success": False, "error": result['error']}, status=result.get('status_code', 500))
+    if not builds:
+        return JsonResponse({"success": False, "error": "所有平台构建均失败"}, status=500)
+    if len(builds) == 1:
+        return JsonResponse(builds[0])
+    return JsonResponse({"success": True, "multi": True, "builds": builds})
 
 
 def api_status(request):

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <title>正在生成构建</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            min-height: 100vh;
+            margin: 0;
+            padding: 40px 16px;
+            box-sizing: border-box;
+            text-align: center;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        }
+        h2 {
+            color: #333;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+        .subtitle {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 24px;
+        }
+        .build-card {
+            background: rgba(255, 255, 255, 0.85);
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin: 10px 0;
+            width: 100%;
+            max-width: 520px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            text-align: left;
+        }
+        .build-head {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .plat {
+            font-weight: 700;
+            color: #222;
+            font-size: 1.05em;
+        }
+        .status {
+            color: #666;
+            font-size: 0.88em;
+        }
+        .status.done { color: #1a7f37; font-weight: 600; }
+        .status.fail { color: #c0392b; font-weight: 600; }
+        .log-link {
+            color: #3498db;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.85em;
+            white-space: nowrap;
+        }
+        .log-link:hover { text-decoration: underline; }
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 28px;
+            height: 28px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <h2>构建进行中</h2>
+    <div class="subtitle">共 {{ builds|length }} 个平台，整个过程大约需要 30–45 分钟。此页面会自动刷新。</div>
+    <div class="loading-spinner"></div>
+
+    <div id="builds">
+        {% for b in builds %}
+        <div class="build-card" data-uuid="{{ b.uuid }}">
+            <div class="build-head">
+                <span class="plat">{{ b.platform_label }}</span>
+                <span class="status" id="status-{{ b.uuid }}">构建进行中…</span>
+            </div>
+            <a class="log-link" href="{{ b.log_url }}" target="_blank">构建日志 ↗</a>
+        </div>
+        {% endfor %}
+    </div>
+
+    <script>
+        const UUIDS = "{{ uuids }}";
+        const PLATFORMS = "{{ platforms }}";
+        const FILENAMES = "{{ filenames }}";
+
+        const STATUS_ZH = {
+            'queued': '排队中', 'requested': '等待调度', 'waiting': '等待调度',
+            'pending': '等待中', 'in_progress': '构建进行中', 'completed': '已完成',
+            'success': '构建成功', 'failure': '构建失败', 'cancelled': '已取消',
+            'timed_out': '已超时', 'skipped': '已跳过', 'action_required': '需要人工处理',
+            'unknown': '状态未知'
+        };
+        const DONE = ['success'];
+        const FAIL = ['failure', 'cancelled', 'timed_out', 'skipped', 'action_required'];
+
+        function applyStatus(b) {
+            const el = document.getElementById('status-' + b.uuid);
+            if (!el) return;
+            const zh = STATUS_ZH[b.status] || b.status;
+            el.textContent = zh;
+            el.classList.remove('done', 'fail');
+            if (DONE.includes(b.status)) el.classList.add('done');
+            else if (FAIL.includes(b.status)) el.classList.add('fail');
+        }
+
+        function poll() {
+            fetch(`/check_builds?uuids=${encodeURIComponent(UUIDS)}&platforms=${encodeURIComponent(PLATFORMS)}&filenames=${encodeURIComponent(FILENAMES)}`)
+                .then(r => r.json())
+                .then(data => {
+                    data.builds.forEach(applyStatus);
+                    if (data.all_terminal) {
+                        window.location.href = `/builds_result?uuids=${encodeURIComponent(UUIDS)}&platforms=${encodeURIComponent(PLATFORMS)}&filenames=${encodeURIComponent(FILENAMES)}`;
+                    }
+                })
+                .catch(() => {});
+        }
+
+        poll();
+        setInterval(poll, 15000);
+    </script>
+</body>
+</html>

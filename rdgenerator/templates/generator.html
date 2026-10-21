@@ -456,6 +456,41 @@
             box-shadow: 0 0 12px rgba(245, 87, 108, 0.4);
         }
 
+        /* ========== 平台多选复选框 ========== */
+        #id_platform {
+            list-style: none;
+            padding-left: 0;
+            margin: 0;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 4px 10px;
+        }
+        #id_platform li {
+            list-style: none;
+        }
+        #id_platform label {
+            display: flex;
+            align-items: center;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 0.88rem;
+            padding: 2px 0;
+            transition: color 0.3s ease;
+        }
+        #id_platform label:hover {
+            color: var(--text-primary);
+        }
+        #id_platform input[type="checkbox"] {
+            margin-right: 8px;
+            width: 16px;
+            height: 16px;
+            accent-color: #667eea;
+            flex-shrink: 0;
+        }
+        #id_platform label:has(input:checked) {
+            color: #ffffff !important;
+        }
+
         .btn-gradient {
             background: var(--primary-gradient);
             border: none;
@@ -827,13 +862,7 @@
                             </div>
                         </div>
 
-                        <select name="platform" id="id_platform">
-                            <option value="windows" selected>Windows 64Bit</option>
-                            <option value="windows-x86">Windows 32Bit</option>
-                            <option value="linux">Linux</option>
-                            <option value="android">Android</option>
-                            <option value="macos">macOS</option>
-                        </select>
+                        {{ form.platform }}
 
                         <div class="row g-3 mt-2">
                             <div class="col-md-6">
@@ -1204,28 +1233,29 @@
             }
         })();
 
-        // 平台图标和下拉框双向联动
+        // 平台图标与多选复选框联动（支持多选）
+        const platformCheckboxes = document.querySelectorAll('#id_platform input[type="checkbox"]');
         const platformIcons = document.querySelectorAll('.platform-icon-wrapper');
-        const platformSelect = document.getElementById('id_platform');
+
+        function syncIconsFromCheckboxes() {
+            platformCheckboxes.forEach(cb => {
+                const w = document.querySelector('.platform-icon-wrapper[data-platform="' + cb.value + '"]');
+                if (w) w.classList.toggle('active', cb.checked);
+            });
+        }
 
         platformIcons.forEach(wrapper => {
             wrapper.addEventListener('click', function() {
-                platformIcons.forEach(w => w.classList.remove('active'));
-                this.classList.add('active');
-                platformSelect.value = this.dataset.platform;
-            });
-        });
-
-        platformSelect.addEventListener('change', function() {
-            const selectedPlatform = this.value;
-            platformIcons.forEach(wrapper => {
-                if (wrapper.dataset.platform === selectedPlatform) {
-                    wrapper.classList.add('active');
-                } else {
-                    wrapper.classList.remove('active');
+                const val = this.dataset.platform;
+                const cb = document.querySelector('#id_platform input[value="' + val + '"]');
+                if (cb) {
+                    cb.checked = !cb.checked;
+                    syncIconsFromCheckboxes();
                 }
             });
         });
+        platformCheckboxes.forEach(cb => cb.addEventListener('change', syncIconsFromCheckboxes));
+        syncIconsFromCheckboxes();
 
         // 密码显示/隐藏切换
         function togglePasswordVisibility(inputId, btn) {

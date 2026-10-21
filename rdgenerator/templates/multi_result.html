@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <title>构建结果</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 40px 16px;
+            box-sizing: border-box;
+            text-align: center;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        }
+        h2 {
+            color: #333;
+            font-weight: 600;
+            margin-bottom: 24px;
+        }
+        .build-card {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 12px;
+            padding: 20px 24px;
+            margin: 12px 0;
+            width: 100%;
+            max-width: 560px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            text-align: left;
+        }
+        .build-card h3 {
+            margin: 0 0 6px;
+            color: #222;
+            font-size: 1.15em;
+        }
+        .status {
+            font-size: 0.88em;
+            margin-bottom: 12px;
+        }
+        .status.done { color: #1a7f37; font-weight: 600; }
+        .status.fail { color: #c0392b; font-weight: 600; }
+        .downloads { display: flex; flex-direction: column; gap: 8px; }
+        .download-link {
+            display: block;
+            padding: 10px 14px;
+            background-color: #3498db;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 0.9em;
+            transition: background-color 0.3s ease;
+            word-break: break-all;
+        }
+        .download-link:hover { background-color: #2980b9; }
+        .warn {
+            color: #856404;
+            background: #fff3cd;
+            border: 1px solid #ffeeba;
+            padding: 10px 12px;
+            border-radius: 8px;
+            font-size: 0.88em;
+            margin: 8px 0;
+        }
+        .log-link { color: #3498db; text-decoration: none; font-size: 0.85em; }
+        .log-link:hover { text-decoration: underline; }
+        .back-link {
+            margin-top: 24px;
+            color: #666;
+            text-decoration: none;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <h2>构建结果</h2>
+
+    {% for b in builds %}
+    <div class="build-card">
+        <h3>{{ b.platform_label }}</h3>
+        {% if b.status == 'success' %}
+            <div class="status done">状态：构建成功</div>
+            <div class="downloads">
+                {% for link in b.links %}
+                <a class="download-link" href="{{ link.url }}">下载 {{ link.name }}</a>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="status fail">状态：{{ b.status }}</div>
+            <div class="warn">该平台构建未成功，部分文件可能缺失，可尝试重新构建或下方日志排查。</div>
+            <a class="log-link" href="{{ b.log_url }}" target="_blank">查看构建日志 ↗</a>
+        {% endif %}
+    </div>
+    {% endfor %}
+
+    <a class="back-link" href="/">← 返回配置页面</a>
+</body>
+</html>

@@ -41,7 +41,7 @@ class GenerateForm(forms.Form):
             'key': 'OeVuKk5nlHiXp+APNn0Y3pC1Iwpwn44JGqrQCsWqmBw=',
             'apiServer': 'https://api.rustdesk.com:21114',
             'urlLink': 'https://rustdesk.com',
-            'downloadLink': 'https://rustdesk.com/download',
+            'downloadLink': '留空则自动生成本工具的更新下载地址',
             'compname': 'Purslane Ltd',
         }
         for field_name, placeholder in placeholders.items():
@@ -49,9 +49,13 @@ class GenerateForm(forms.Form):
                 self.fields[field_name].widget.attrs['placeholder'] = placeholder
         # ========== 新增结束 ==========
 
-    #Platform
+    #Platform（多选：一次性勾选多个平台，每个平台独立构建、各自 uuid）
     sh_secret_field = forms.CharField(required=False)
-    platform = forms.ChoiceField(choices=[('windows','Windows 64Bit'),('windows-x86','Windows 32Bit'),('linux','Linux'),('android','Android'),('macos','macOS')], initial='windows')
+    platform = forms.MultipleChoiceField(
+        choices=[('windows','Windows 64Bit'),('windows-x86','Windows 32Bit'),('linux','Linux'),('android','Android'),('macos','macOS')],
+        widget=forms.CheckboxSelectMultiple,
+        initial=['windows']
+    )
     version = forms.ChoiceField(choices=[('master','nightly'),('1.5.0','1.5.0'),('1.4.9','1.4.9'),('1.4.8','1.4.8'),('1.4.7','1.4.7'),('1.4.6','1.4.6'),('1.4.5','1.4.5'),('1.4.4','1.4.4'),('1.4.3','1.4.3'),('1.4.2','1.4.2'),('1.4.1','1.4.1'),('1.4.0','1.4.0')], initial='1.5.0')
     help_text="'master' is the development version (nightly build) with the latest features but may be less stable"
     delayFix = forms.BooleanField(initial=True, required=False)
