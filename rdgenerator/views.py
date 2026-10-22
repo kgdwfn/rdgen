@@ -25,7 +25,9 @@ RDGEN_UUID_NS = uuid.UUID('9f3b2c1a-7d4e-4c8a-9b6f-1e2d3c4b5a6f')
 
 # get_png, download and save_custom_client build file paths from request values;
 # only accept a UUID and a plain file name so "../" or absolute paths cannot escape png/ and exe/.
-_UUID_RE = re.compile(r'^[0-9a-fA-F-]{36}$')
+# 客户端 uuid 允许类型前缀：BKD(仅被控) / KZD(仅主控) / QLB(双向)，后接标准 uuid。
+# 前缀用 (?:...)? 设为可选，兼容改版前已生成的旧 uuid，避免旧产物下载/回传被判定非法。
+_UUID_RE = re.compile(r'^(?:BKD|KZD|QLB)?[0-9a-fA-F-]{36}$')
 _NAME_RE = re.compile(r'^[\w.-]+$')
 
 def _safe_parts(uuid_val, filename):
@@ -90,28 +92,91 @@ def _load_batch(batch_id):
         return None
 
 
+def _local_artifacts(uuid_val, platform):
+    """返回 exe/{uuid}/ 下该平台产物的真实文件名列表。
+
+    产物由 workflow 末尾 `save_custom_client` 回传落盘，文件出现即代表构建完成。
+    这比 GitHub API 的 run 状态更早、更可靠，且是纯本地 IO（毫秒级），
+    是「构建完成后立刻给出下载地址」的关键判据。
+    """
+    if not uuid_val or not _safe_parts(uuid_val, None):
+        return []
+    suffixes = _platform_suffixes(platform)
+    if not suffixes:
+        return []
+    exe_dir = os.path.join('exe', uuid_val)
+    if not os.path.isdir(exe_dir):
+        return []
+    lowered = tuple(s.lower() for s in suffixes)
+    try:
+        names = os.listdir(exe_dir)
+    except OSError:
+        return []
+    return sorted(f for f in names if f.lower().endswith(lowered))
+
+
 def _batch_status(batch):
-    """按批次汇总各平台实时状态、日志链接与（终态时的）下载链接。"""
+    """按批次汇总各平台实时状态、日志链接与（终态时的）下载链接。
+
+    判定顺序（决定「构建完成后多快能拿到下载」）：
+      ① 本地产物优先：exe/{uuid}/ 下已有该平台产物 → 直接判成功并给真实文件名链接。
+         产物回传比 GitHub API 更早也更可靠，且不走网络，轮询可秒回。
+      ② 本地无产物 → 查 GitHub run 状态（_get_run_status 内部带超时 + 终态缓存），
+         用于识别失败/取消，避免无限等待。
+      ③ 两者都无终态 → 仍在构建中；
+     stale=True 表示批次已远超正常耗时（2 小时）却仍无结论，前端据此提示
+     「可能已结束，请直接查看结果页/日志」，避免用户被永久困在等待页。
+    """
     builds = []
     all_terminal = True
     for b in batch.get('builds', []):
         platform = b.get('platform', '')
         filename = b.get('filename', '')
-        st = _get_run_status(b.get('uuid', ''))
+        uid = b.get('uuid', '')
+        item = {
+            'uuid': uid,
+            'platform': platform,
+            'platform_label': b.get('platform_label') or _platform_label(platform),
+            'filename': filename,
+        }
+
+        artifacts = _local_artifacts(uid, platform)
+        if artifacts:
+            item.update({
+                'status': 'success',
+                'source': 'local',
+                'log_url': b.get('log_url', ''),
+                'links': [
+                    {'url': f"/download?uuid={uid}&filename={quote(n)}", 'name': n}
+                    for n in artifacts
+                ],
+            })
+            builds.append(item)
+            continue
+
+        st = _get_run_status(uid)
         status = st['status'] if st.get('found') else 'unknown'
         terminal = status in _TERMINAL_STATUSES
         if not terminal:
             all_terminal = False
-        builds.append({
-            'uuid': b.get('uuid', ''),
-            'platform': platform,
-            'platform_label': b.get('platform_label') or _platform_label(platform),
-            'filename': filename,
+        item.update({
             'status': status,
+            'source': 'github',
             'log_url': st.get('github_log_url') or b.get('log_url', ''),
-            'links': _download_links_for(platform, b.get('uuid', ''), filename) if terminal else [],
+            'links': _download_links_for(platform, uid, filename) if terminal else [],
         })
-    return {'builds': builds, 'all_terminal': all_terminal}
+        builds.append(item)
+
+    stale = False
+    created_at = batch.get('created_at', '')
+    if created_at:
+        try:
+            created = datetime.datetime.strptime(created_at, '%Y-%m-%d %H:%M:%S')
+            stale = (datetime.datetime.now() - created).total_seconds() > 7200
+        except (ValueError, TypeError):
+            stale = False
+
+    return {'builds': builds, 'all_terminal': all_terminal, 'stale': stale}
 
 
 def _auto_download_link(platform, uuid, filename, full_url):
@@ -271,9 +336,13 @@ def generate_custom_client(params, full_url):
         filename = "rustdesk"
     if not all(char.isascii() for char in appname):
         appname = "rustdesk"
-    # 按「连接类型 + 平台」派生稳定 uuid：同类型同平台跨版本重建 → 相同 uuid，
-    # 旧客户端更新地址不变、能拿到新版；不同类型/平台自然隔离。
-    myuuid = str(uuid.uuid5(RDGEN_UUID_NS, f"{direction}|{platform}"))
+    # 按「连接类型 + 平台」派生稳定 uuid，并加类型前缀便于一眼区分：
+    #   仅被控(incoming) -> BKD，仅主控(outgoing) -> KZD，双向(both) -> QLB。
+    # 同类型同平台跨版本重建 → 相同 uuid → 旧客户端更新地址不变、能拿到新版；
+    # 不同类型/平台自然隔离。前缀仅作可读性标识，不改变派生的稳定性。
+    _DIRECTION_PREFIX = {'incoming': 'BKD', 'outgoing': 'KZD', 'both': 'QLB'}
+    prefix = _DIRECTION_PREFIX.get(direction, 'QLB')
+    myuuid = f"{prefix}{uuid.uuid5(RDGEN_UUID_NS, f'{direction}|{platform}')}"
 
     # 用户未填更新下载地址时，按平台自动拼出「工具域名 + 构建产物」作为更新链接
     effective_download_link = downloadLink
@@ -617,7 +686,9 @@ def _get_run_status(uuid_val):
         api_url = f"https://api.github.com/repos/{_settings.GHUSER}/{_settings.REPONAME}/actions/runs/{gh_run.github_run_id}"
         
         try:
-            gh_response = requests.get(api_url, headers=headers)
+            # 必须带 timeout：无超时时 GitHub API 一旦挂起，等待页轮询会被拖住，
+            # 表现为「构建早已完成但页面一直转圈」。
+            gh_response = requests.get(api_url, headers=headers, timeout=5)
             if gh_response.status_code == 200:
                 gh_data = gh_response.json()
                 
@@ -825,6 +896,14 @@ def builds_result(request):
     return render(request, 'multi_result.html', {'builds': builds})
 
 
+def _batch_filename(batch):
+    """批次共用的文件名（= 表单里的 Name for EXE file），用于页面标题与构建信息面板。"""
+    for b in batch.get('builds') or []:
+        if b.get('filename'):
+            return b['filename']
+    return ''
+
+
 def builds_view(request, batch_id):
     """单次构建批次的等待页：地址 /builds/<batch_id>，每次构建都不同。"""
     batch = _load_batch(batch_id)
@@ -835,6 +914,7 @@ def builds_view(request, batch_id):
         'batch_id': batch_id,
         'version': batch.get('version', ''),
         'created_at': batch.get('created_at', ''),
+        'filename': _batch_filename(batch),
         'builds': batch.get('builds', []),
     })
 
@@ -858,6 +938,7 @@ def builds_result_view(request, batch_id):
         'batch_id': batch_id,
         'version': batch.get('version', ''),
         'created_at': batch.get('created_at', ''),
+        'filename': _batch_filename(batch),
         'builds': status['builds'],
     })
 

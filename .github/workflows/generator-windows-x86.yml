@@ -136,6 +136,22 @@ jobs:
           choco install -y imagemagick.app --no-progress
           Get-ChildItem -Path "${env:ProgramFiles}" | % { $_.FullName } | Select-String -Pattern "[\/\\]ImageMagick[^\/\\]*$" | Out-File -Append -FilePath $env:GITHUB_PATH -Encoding utf8
 
+      - name: force utf-8 charset for sciter html
+        # Sciter 用系统 ANSI 代码页（中文 Windows = GBK）解码 load_html 传入的字节流，
+        # 而上游 src/ui/index.html 没有 charset 声明 → 构建期注入的中文（公司名/显示名）
+        # 会被当成 GBK 解析，表现为「关于」等界面里中文变成乱码。
+        # 补上 <meta charset="utf-8">，Sciter 才会按 UTF-8 解析。
+        # index.html 的 <head> 在 1.4.0/1.4.9/1.5.0 均唯一；已含 charset 的版本自动跳过。
+        continue-on-error: true
+        shell: bash
+        run: |
+          for f in ./src/ui/index.html ./src/ui/remote.html ./src/ui/install.html ./src/ui/chatbox.html ./src/ui/cm.html; do
+            [ -f "$f" ] || continue
+            grep -qi '<meta charset' "$f" && continue
+            sed -i '0,/<head>/s|<head>|<head><meta charset="utf-8">|' "$f"
+          done
+          grep -c '<meta charset="utf-8">' ./src/ui/index.html || true
+
       - name: set powered-by text to compname
         # 必须置于 change appname to custom 之前：该步会把 lang 文件里所有 RustDesk 换成 appname，
         # 若先执行，powered_by_me 行将不再含 RustDesk，本步只会空转。
@@ -277,6 +293,39 @@ jobs:
           sed -i -e '/^pub fn check_software_update() {$/,/^}$/ s|^    if is_custom_client() {$|    if false \&\& is_custom_client() {|' ./src/common.rs
           sed -i -e "/^fn check_update(manually: bool) -> ResultType<()> {\$/a\\    if crate::is_custom_client() {\n        return Ok(());\n    }" ./src/updater.rs
           sed -i -e 's|{is_custom_client$|{false|' ./src/ui/index.tis
+          # UpdateMe 卡片文案中文化（上游这两句是硬编码英文 / 缺 translate 条目，
+          # 定制客户端会直接显示 "There is a newer version of ... / Click to download"）。
+          # 英文长句在窄窗口里还会换行被裁（「更新按钮显示不全」），中文短句同时解决可读性与换行。
+          sed -i 's|There is a newer version of {handler.get_app_name()} ({handler.get_new_version()}) available.|发现新版本 {handler.get_new_version()}，点击下方按钮下载。|' ./src/ui/index.tis
+          sed -i "s|{translate('Click to ' + update_or_download)}|点击下载|" ./src/ui/index.tis
+          sed -i "s|{translate('Click to upgrade')}|点击升级|" ./src/ui/index.tis
+
+      - name: fix update click opens browser (sciter open_url uses explorer)
+        # 根因：Sciter 版 open_url 在 Windows 下是 `explorer.exe <url>`：
+        #     #[cfg(windows)] let p = "explorer"; ... Command::new(p).arg(url)
+        # 对自建域名/内网 IP 且带 ?& 查询串的下载链接，explorer 常把它当本地路径
+        # 打开（表现为点「更新」打开的是资源管理器本地目录，而不是浏览器）。
+        # x64 走 Flutter 的 launchUrl（真正的 URL 协议处理）没有此问题，故仅 x86。
+        # 修法：Windows 分支改用 `rundll32 url.dll,FileProtocolHandler <url>`，
+        # 交给系统 URL 协议处理器，稳定调起默认浏览器；非 Windows 分支保持原样。
+        continue-on-error: true
+        shell: bash
+        run: |
+          # 1) Windows 分支的可执行文件由 explorer 改为 rundll32
+          sed -i '/#\[cfg(windows)\]/{n;s|let p = "explorer";|let p = "rundll32";|}' ./src/ui.rs
+          # 2) 仅 Windows 分支追加第一个参数 url.dll,FileProtocolHandler；其余平台原样
+          sed -i 's|allow_err!(std::process::Command::new(p).arg(url).spawn());|#[cfg(windows)] allow_err!(std::process::Command::new(p).arg("url.dll,FileProtocolHandler").arg(url).spawn());\n        #[cfg(not(windows))] allow_err!(std::process::Command::new(p).arg(url).spawn());|' ./src/ui.rs
+          echo "=== ui.rs open_url after patch ==="
+          grep -n 'FileProtocolHandler\|let p = "rundll32"' ./src/ui.rs || true
+
+      - name: ensure sciter window minimum size (fix cut-off install button)
+        continue-on-error: true
+        shell: bash
+        run: |
+          # 上游 self.ready() 用保存的尺寸恢复窗口；若曾保存过过矮的尺寸，安装按钮会被裁掉。
+          # 恢复时把宽高钳制到最小 800x600（与首次启动默认一致），保证任意分辨率下安装按钮
+          # 完整可见；若保存尺寸 >= 屏幕工作区则走最大化分支，不会超出屏幕。
+          sed -i 's|: r\[2\], r\[3\]);|: Math.max(r[2], 800), Math.max(r[3], 600));|' ./src/ui/index.tis
 
       - name: set server, serverPort, key, and apiserver
         continue-on-error: true

@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="utf-8">
-    <title>构建结果</title>
+    <title>构建结果{% if filename %} - {{ filename }}{% endif %}</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif;
@@ -133,7 +133,6 @@
 <body>
     <h2>构建结果</h2>
     {% if version %}<div class="version-badge">RustDesk {{ version }}</div>{% endif %}
-    {% if batch_id %}<div class="batch-meta">构建单号 <code>{{ batch_id|slice:":8" }}</code>{% if created_at %} · {{ created_at }}{% endif %}</div>{% endif %}
 
     {% for b in builds %}
     <div class="build-card">
@@ -159,7 +158,7 @@
         <div class="vp-row"><span class="vp-label">RustDesk 版本</span><span class="vp-value">{% if version %}{{ version }}{% else %}—{% endif %}</span></div>
         <div class="vp-row"><span class="vp-label">构建单号</span><span class="vp-value"><code>{{ batch_id }}</code></span></div>
         <div class="vp-row"><span class="vp-label">创建时间</span><span class="vp-value">{{ created_at|default:"—" }}</span></div>
-        <div class="vp-row"><span class="vp-label">本页地址</span><span class="vp-value"><code>/builds/{{ batch_id }}/result</code></span></div>
+        <div class="vp-row"><span class="vp-label">文件名</span><span class="vp-value">{% if filename %}<code>{{ filename }}</code>{% else %}—{% endif %}</span></div>
     </div>
     {% endif %}
 

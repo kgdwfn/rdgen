@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="utf-8">
-    <title>正在生成构建</title>
+    <title>构建进行中{% if filename %} - {{ filename }}{% endif %}</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif;
@@ -121,6 +121,33 @@
             white-space: nowrap;
         }
         .log-link:hover { text-decoration: underline; }
+        .dl-links {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-top: 6px;
+        }
+        .dl-links a {
+            color: #1a7f37;
+            font-weight: 600;
+            font-size: 0.85em;
+            text-decoration: none;
+            word-break: break-all;
+        }
+        .dl-links a:hover { text-decoration: underline; }
+        .stale-tip {
+            max-width: 520px;
+            margin: 4px 0 16px;
+            padding: 10px 14px;
+            background: #fff3cd;
+            border: 1px solid #ffeeba;
+            border-radius: 8px;
+            color: #856404;
+            font-size: 0.86em;
+            text-align: left;
+            line-height: 1.6;
+        }
+        .stale-tip a { color: #0b5ed7; }
         .loading-spinner {
             border: 4px solid #f3f3f3;
             border-top: 4px solid #3498db;
@@ -137,8 +164,13 @@
     <h2>构建进行中</h2>
     {% if version %}<div class="version-badge">RustDesk {{ version }}</div>{% endif %}
     <div class="subtitle">共 {{ builds|length }} 个平台，整个过程大约需要 30–45 分钟。此页面会自动刷新。</div>
-    {% if batch_id %}<div class="batch-meta">构建单号 <code>{{ batch_id|slice:":8" }}</code>{% if created_at %} · {{ created_at }}{% endif %} · 本页地址可收藏，随时回看</div>{% endif %}
+    {% if batch_id %}<div class="batch-meta">构建单号 <code>{{ batch_id|slice:":8" }}</code>{% if created_at %} · {{ created_at }}{% endif %}</div>{% endif %}
     <div class="loading-spinner"></div>
+
+    <div id="stale-tip" class="stale-tip" style="display:none;">
+        构建耗时已超出预期，可能已经结束。可
+        <a href="/builds/{{ batch_id }}/result">直接打开结果页查看</a>，或在下方点「构建日志」核对。
+    </div>
 
     <div id="builds">
         {% for b in builds %}
@@ -146,6 +178,7 @@
             <div class="build-head">
                 <span class="plat">{{ b.platform_label }}</span>
                 <span class="status" id="status-{{ b.uuid }}">构建进行中…</span>
+                <div class="dl-links" id="links-{{ b.uuid }}"></div>
             </div>
             <a class="log-link" href="{{ b.log_url }}" target="_blank">构建日志 ↗</a>
         </div>
@@ -158,7 +191,7 @@
         <div class="vp-row"><span class="vp-label">RustDesk 版本</span><span class="vp-value">{% if version %}{{ version }}{% else %}—{% endif %}</span></div>
         <div class="vp-row"><span class="vp-label">构建单号</span><span class="vp-value"><code>{{ batch_id }}</code></span></div>
         <div class="vp-row"><span class="vp-label">创建时间</span><span class="vp-value">{{ created_at|default:"—" }}</span></div>
-        <div class="vp-row"><span class="vp-label">本页地址</span><span class="vp-value"><code>/builds/{{ batch_id }}</code></span></div>
+        <div class="vp-row"><span class="vp-label">文件名</span><span class="vp-value">{% if filename %}<code>{{ filename }}</code>{% else %}—{% endif %}</span></div>
     </div>
     {% endif %}
 
@@ -183,22 +216,51 @@
             el.classList.remove('done', 'fail');
             if (DONE.includes(b.status)) el.classList.add('done');
             else if (FAIL.includes(b.status)) el.classList.add('fail');
+
+            // 哪个平台先完成，就立刻在它自己的卡片上给出下载地址，
+            // 不必等其它平台、更不必等全部完成（此前只有全部完成才跳结果页才见链接）。
+            const box = document.getElementById('links-' + b.uuid);
+            if (box) {
+                if (b.status === 'success' && b.links && b.links.length) {
+                    box.innerHTML = b.links
+                        .map(l => `<a href="${l.url}">${l.name} ↓</a>`)
+                        .join('');
+                } else {
+                    box.innerHTML = '';
+                }
+            }
         }
 
+        let stopped = false;
+        let polls = 0;
+
         function poll() {
-            fetch(`/builds/${BATCH_ID}/status`)
+            fetch(`/builds/${BATCH_ID}/status`, { cache: 'no-store' })
                 .then(r => r.json())
                 .then(data => {
-                    data.builds.forEach(applyStatus);
+                    (data.builds || []).forEach(applyStatus);
                     if (data.all_terminal) {
+                        stopped = true;
                         window.location.href = `/builds/${BATCH_ID}/result`;
+                        return;
+                    }
+                    if (data.stale) {
+                        const tip = document.getElementById('stale-tip');
+                        if (tip) tip.style.display = 'block';
                     }
                 })
-                .catch(() => {});
+                .catch(() => {})
+                .finally(() => { if (!stopped) schedule(); });
+        }
+
+        // 前 5 分钟 5 秒一次（构建刚完成时能立刻跳转），之后降频到 15 秒，减轻服务器压力。
+        function schedule() {
+            polls += 1;
+            const delay = polls * 5 <= 300 ? 5000 : 15000;
+            setTimeout(poll, delay);
         }
 
         poll();
-        setInterval(poll, 15000);
     </script>
 </body>
 </html>

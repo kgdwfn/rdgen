@@ -347,6 +347,18 @@ jobs:
           sed -i -e "/^Future<void> handleUpdate(String releasePageUrl) async {\$/a\\  unawaited(launchUrl(Uri.parse('${{ env.downloadLink }}')));\n  return;" ./flutter/lib/desktop/widgets/update_progress.dart
           sed -i -e "/^fn check_update(manually: bool) -> ResultType<()> {\$/a\\    if crate::is_custom_client() {\n        return Ok(());\n    }" ./src/updater.rs
 
+      - name: show custom app name in title bar (win10/linux self-drawn caption)
+        continue-on-error: true
+        shell: bash
+        run: |
+          # 上游 DesktopTitleBar 的标题 Text 写死 "RustDesk" 且 showTitle 默认 false，
+          # 导致 win10/linux（隐藏系统标题栏、用自绘标题栏）下不显示标题，只有 win7 原生栏显示。
+          # 改为默认显示，并用 getWindowName() 显示自定义应用名（win7 整条 Row 被
+          # kUseCompatibleUiMode 隐藏，不会出现双标题；macOS同理被隐藏）。
+          sed -i 's|this.showTitle = false,|this.showTitle = true,|' ./flutter/lib/desktop/widgets/tabbar_widget.dart
+          sed -i 's|child: const Text(|child: Text(|' ./flutter/lib/desktop/widgets/tabbar_widget.dart
+          sed -i 's|"RustDesk",|getWindowName(),|' ./flutter/lib/desktop/widgets/tabbar_widget.dart
+
       - name: set server, serverPort, key, and apiserver
         continue-on-error: true
         shell: bash
@@ -555,6 +567,16 @@ jobs:
             Write-Host "Error: printer-adapter folder not found in repository."
           }
 
+      - name: raise custom logo size cap (before flutter build)
+        # 关键修复：BoxConstraints 上限必须在 flutter 编译（build.py --flutter）之前改。
+        # 原「enlarge custom logo」步在构建之后才 sed common.dart，源码虽改、App 却已编译，
+        # 约束变更永不生效——这正是「填了 logo 高度却毫无变化」的根因之一。
+        shell: bash
+        run: |
+          if [ "${{ env.logolink_url }}" != "false" ] && [ -n "${{ env.logo_max_height }}" ] && [ "${{ env.logo_max_height }}" != "false" ]; then
+            sed -i 's|BoxConstraints(maxWidth: 300, maxHeight: 60)|BoxConstraints(maxWidth: ${{ env.logo_max_width }}, maxHeight: ${{ env.logo_max_height }})|' flutter/lib/common.dart
+          fi
+
       - name: Build rustdesk
         run: |
           # Windows: build RustDesk
@@ -615,8 +637,12 @@ jobs:
       - name: enlarge custom logo if size provided
         shell: bash
         run: |
-          if [ "${{ env.logolink_url }}" != "false" ] && [ -n "${{ env.logo_max_height }}" ] && [ "${{ env.logo_max_height }}" != "false" ]; then
-            sed -i 's|BoxConstraints(maxWidth: 300, maxHeight: 60)|BoxConstraints(maxWidth: ${{ env.logo_max_width }}, maxHeight: ${{ env.logo_max_height }})|' flutter/lib/common.dart
+          # 约束上限已在构建前抬高（见「raise custom logo size cap」步）。
+          # 这里把 logo.png 本身缩放到目标尺寸：BoxConstraints 只是上限，图片按原始像素
+          # 显示、不超上限就不变，所以必须改图片本身，logo 才会真正按所填高度显示。
+          LOGO=./rustdesk/data/flutter_assets/assets/logo.png
+          if [ "${{ env.logolink_url }}" != "false" ] && [ -n "${{ env.logo_max_height }}" ] && [ "${{ env.logo_max_height }}" != "false" ] && [ -f "$LOGO" ]; then
+            magick "$LOGO" -resize ${{ env.logo_max_width }}x${{ env.logo_max_height }} "$LOGO"
           fi
 
       - name: find Runner.res
