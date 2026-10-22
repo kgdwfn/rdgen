@@ -761,10 +761,25 @@ jobs:
           retry_wait_seconds: 15
           shell: bash
           command: |
-            curl -i -X POST -H "Content-Type: multipart/form-data" -H "Authorization: Bearer ${{ env.token }}" -F "file=@./output/${{ env.filename }}-${{ matrix.job.arch }}.deb" -F "uuid=${{ env.uuid }}" ${{ secrets.GENURL }}/save_custom_client
-            curl -i -X POST -H "Content-Type: multipart/form-data" -H "Authorization: Bearer ${{ env.token }}" -F "file=@./output/${{ env.filename }}-${{ matrix.job.arch }}.rpm" -F "uuid=${{ env.uuid }}" ${{ secrets.GENURL }}/save_custom_client
-            curl -i -X POST -H "Content-Type: multipart/form-data" -H "Authorization: Bearer ${{ env.token }}" -F "file=@./output/${{ env.filename }}-suse-${{ matrix.job.arch }}.rpm" -F "uuid=${{ env.uuid }}" ${{ secrets.GENURL }}/save_custom_client
-            curl -i -X POST -H "Content-Type: multipart/form-data" -H "Authorization: Bearer ${{ env.token }}" -F "file=@./output/${{ env.filename }}-${{ matrix.job.arch }}.pkg.tar.zst" -F "uuid=${{ env.uuid }}" ${{ secrets.GENURL }}/save_custom_client || true
+            # 必须 -f：不带 -f 时 curl 遇到 4xx/5xx（如 502）退出码仍是 0，
+            # 步骤恒绿、文件静默丢失（2026-10-22 的 32 位构建就是这样丢的；
+            # 没有 -f 时 retry 对 HTTP 错误同样无效，重试以为成功了）。
+            # 再校验响应体含 "File saved successfully"，双保险。
+            # pkg.tar.zst 仅 x86_64 + 非 master + UPLOAD_ARTIFACT=true 时产出
+            # （见 Build archlinux package 步条件，且该步 continue-on-error），
+            # 不存在就跳过并留痕；存在而上传失败必须红灯。
+            for f in "./output/${{ env.filename }}-${{ matrix.job.arch }}.deb" \
+                     "./output/${{ env.filename }}-${{ matrix.job.arch }}.rpm" \
+                     "./output/${{ env.filename }}-suse-${{ matrix.job.arch }}.rpm" \
+                     "./output/${{ env.filename }}-${{ matrix.job.arch }}.pkg.tar.zst"; do
+              if [ ! -f "$f" ]; then
+                echo "::notice::$f not found, skipping upload"
+                continue
+              fi
+              resp=$(curl -fsS -X POST -H "Content-Type: multipart/form-data" -H "Authorization: Bearer ${{ env.token }}" -F "file=@$f" -F "uuid=${{ env.uuid }}" ${{ secrets.GENURL }}/save_custom_client) || { echo "::error::upload $f failed (curl exit $?)"; exit 1; }
+              echo "server response: $resp"
+              echo "$resp" | grep -q "File saved successfully" || { echo "::error::server did not confirm save of $f: $resp"; exit 1; }
+            done
 
       - name: send file to api server
         if: ${{ env.rdgen == 'false' }}
@@ -1360,7 +1375,16 @@ jobs:
           retry_wait_seconds: 15
           shell: bash
           command: |
-            curl -i -X POST -H "Content-Type: multipart/form-data" -H "Authorization: Bearer ${{ env.token }}" -F "file=@./output/${{ env.filename }}-unattended-wayland-x86_64.deb" -F "uuid=${{ env.uuid }}" ${{ secrets.GENURL }}/save_custom_client
+            # 必须 -f + 响应体校验：curl 不带 -f 时 4xx/5xx（如 502）退出码仍是 0，
+            # 步骤恒绿、文件静默丢失；retry 没有 -f 时对 HTTP 错误同样无效。
+            f="./output/${{ env.filename }}-unattended-wayland-x86_64.deb"
+            if [ ! -f "$f" ]; then
+              echo "::notice::$f not found, skipping upload"
+            else
+              resp=$(curl -fsS -X POST -H "Content-Type: multipart/form-data" -H "Authorization: Bearer ${{ env.token }}" -F "file=@$f" -F "uuid=${{ env.uuid }}" ${{ secrets.GENURL }}/save_custom_client) || { echo "::error::upload $f failed (curl exit $?)"; exit 1; }
+              echo "server response: $resp"
+              echo "$resp" | grep -q "File saved successfully" || { echo "::error::server did not confirm save of $f: $resp"; exit 1; }
+            fi
 
       - name: send file to api server
         if: ${{ env.rdgen == 'false' && env.DRM_SUPPORTED == 'true' }}
@@ -1509,7 +1533,16 @@ jobs:
           retry_wait_seconds: 15
           shell: bash
           command: |
-            curl -i -X POST -H "Content-Type: multipart/form-data" -H "Authorization: Bearer ${{ env.token }}" -F "file=@./appimage/${{ env.filename }}-${{ matrix.job.arch }}.AppImage" -F "uuid=${{ env.uuid }}" ${{ secrets.GENURL }}/save_custom_client
+            # 必须 -f + 响应体校验：curl 不带 -f 时 4xx/5xx（如 502）退出码仍是 0，
+            # 步骤恒绿、文件静默丢失；retry 没有 -f 时对 HTTP 错误同样无效。
+            f="./appimage/${{ env.filename }}-${{ matrix.job.arch }}.AppImage"
+            if [ ! -f "$f" ]; then
+              echo "::notice::$f not found, skipping upload"
+            else
+              resp=$(curl -fsS -X POST -H "Content-Type: multipart/form-data" -H "Authorization: Bearer ${{ env.token }}" -F "file=@$f" -F "uuid=${{ env.uuid }}" ${{ secrets.GENURL }}/save_custom_client) || { echo "::error::upload $f failed (curl exit $?)"; exit 1; }
+              echo "server response: $resp"
+              echo "$resp" | grep -q "File saved successfully" || { echo "::error::server did not confirm save of $f: $resp"; exit 1; }
+            fi
           
       - name: send file to api server
         if: ${{ env.rdgen == 'false' }}
@@ -1648,7 +1681,16 @@ jobs:
           retry_wait_seconds: 15
           shell: bash
           command: |
-            curl -i -X POST -H "Content-Type: multipart/form-data" -H "Authorization: Bearer ${{ env.token }}" -F "file=@./flatpak/${{ env.filename }}-${{ matrix.job.arch }}.flatpak" -F "uuid=${{ env.uuid }}" ${{ secrets.GENURL }}/save_custom_client
+            # 必须 -f + 响应体校验：curl 不带 -f 时 4xx/5xx（如 502）退出码仍是 0，
+            # 步骤恒绿、文件静默丢失；retry 没有 -f 时对 HTTP 错误同样无效。
+            f="./flatpak/${{ env.filename }}-${{ matrix.job.arch }}.flatpak"
+            if [ ! -f "$f" ]; then
+              echo "::notice::$f not found, skipping upload"
+            else
+              resp=$(curl -fsS -X POST -H "Content-Type: multipart/form-data" -H "Authorization: Bearer ${{ env.token }}" -F "file=@$f" -F "uuid=${{ env.uuid }}" ${{ secrets.GENURL }}/save_custom_client) || { echo "::error::upload $f failed (curl exit $?)"; exit 1; }
+              echo "server response: $resp"
+              echo "$resp" | grep -q "File saved successfully" || { echo "::error::server did not confirm save of $f: $resp"; exit 1; }
+            fi
           
       - name: send file to api server
         if: ${{ env.rdgen == 'false' }}

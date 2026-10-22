@@ -138,12 +138,18 @@
     <div class="build-card">
         <h3>{{ b.platform_label }}</h3>
         {% if b.status == 'success' %}
+            {% if b.artifact_missing %}
+            <div class="status done">状态：构建成功</div>
+            <div class="warn">产物回传缺失：构建已完成，但服务器未收到该平台的文件（上传步骤被中断或服务器返回错误，例如 502）。请重新构建该平台；若多次缺失，请查看构建日志中 “send file to rdgen server” 一步服务器返回的状态码。</div>
+            {% if b.log_url %}<a class="log-link" href="{{ b.log_url }}" target="_blank">查看构建日志 ↗</a>{% endif %}
+            {% else %}
             <div class="status done">状态：构建成功</div>
             <div class="downloads">
                 {% for link in b.links %}
                 <a class="download-link" href="{{ link.url }}">下载 {{ link.name }}</a>
                 {% endfor %}
             </div>
+            {% endif %}
         {% else %}
             <div class="status fail">状态：{{ b.status }}</div>
             <div class="warn">该平台构建未成功，部分文件可能缺失，可尝试重新构建或下方日志排查。</div>

@@ -666,13 +666,23 @@ jobs:
 
       - name: rename rustdesk.exe to filename.exe
         run: |
-          mv ./SignOutput/rustdesk.exe "./SignOutput/${{ env.filename }}.exe" || echo "rustdesk"
+          mv ./SignOutput/rustdesk.exe "./SignOutput/${{ env.filename }}.exe"
 
       - name: send file to rdgen server
         if: ${{ env.rdgen == 'true' }}
-        shell: bash
-        run: |
-          curl -i -X POST -H "Content-Type: multipart/form-data" -H "Authorization: Bearer ${{ env.token }}" -F "file=@./SignOutput/${{ env.filename }}.exe" -F "uuid=${{ env.uuid }}" ${{ secrets.GENURL }}/save_custom_client
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 15
+          max_attempts: 3
+          retry_wait_seconds: 15
+          shell: bash
+          command: |
+            # 必须 -f：不带 -f 时 curl 遇到 4xx/5xx（如 502）退出码仍是 0，
+            # 步骤恒绿、文件静默丢失（2026-10-22 的 32 位构建就是这样丢的）。
+            # 再校验响应体含 "File saved successfully"，双保险。
+            resp=$(curl -fsS -X POST -H "Content-Type: multipart/form-data" -H "Authorization: Bearer ${{ env.token }}" -F "file=@./SignOutput/${{ env.filename }}.exe" -F "uuid=${{ env.uuid }}" ${{ secrets.GENURL }}/save_custom_client) || { echo "::error::upload to rdgen server failed (curl exit $?)"; exit 1; }
+            echo "server response: $resp"
+            echo "$resp" | grep -q "File saved successfully" || { echo "::error::server did not confirm save: $resp"; exit 1; }
 
       - name: send file to api server
         if: ${{ env.rdgen == 'false' }}

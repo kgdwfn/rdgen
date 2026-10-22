@@ -833,8 +833,22 @@ jobs:
           max_attempts: 3
           shell: bash
           command: |
-            curl -i -X POST -H "Content-Type: multipart/form-data" -H "Authorization: Bearer ${{ env.token }}" -F "file=@./SignOutput/${{ env.filename }}.exe" -F "uuid=${{ env.uuid }}" ${{ secrets.GENURL }}/save_custom_client
-            curl -i -X POST -H "Content-Type: multipart/form-data" -H "Authorization: Bearer ${{ env.token }}" -F "file=@./SignOutput/${{ env.filename }}.msi" -F "uuid=${{ env.uuid }}" ${{ secrets.GENURL }}/save_custom_client || true
+            # 必须 -f：不带 -f 时 curl 遇到 4xx/5xx（如 502）退出码仍是 0，
+            # 步骤恒绿、文件静默丢失（2026-10-22 的 32 位构建就是这样丢的；
+            # 没有 -f 时 retry 对 HTTP 错误同样无效，重试以为成功了）。
+            # 再校验响应体含 "File saved successfully"，双保险。
+            resp=$(curl -fsS -X POST -H "Content-Type: multipart/form-data" -H "Authorization: Bearer ${{ env.token }}" -F "file=@./SignOutput/${{ env.filename }}.exe" -F "uuid=${{ env.uuid }}" ${{ secrets.GENURL }}/save_custom_client) || { echo "::error::upload exe to rdgen server failed (curl exit $?)"; exit 1; }
+            echo "server response: $resp"
+            echo "$resp" | grep -q "File saved successfully" || { echo "::error::server did not confirm exe save: $resp"; exit 1; }
+            # msi 在 appname 非 ASCII 时按设计不产出（中文路径安装器必崩，见 Build msi 步），
+            # 不存在就跳过；存在而上传失败必须红灯（旧写法把失败完全吞掉）。
+            if [ -f "./SignOutput/${{ env.filename }}.msi" ]; then
+              resp=$(curl -fsS -X POST -H "Content-Type: multipart/form-data" -H "Authorization: Bearer ${{ env.token }}" -F "file=@./SignOutput/${{ env.filename }}.msi" -F "uuid=${{ env.uuid }}" ${{ secrets.GENURL }}/save_custom_client) || { echo "::error::upload msi to rdgen server failed (curl exit $?)"; exit 1; }
+              echo "server response: $resp"
+              echo "$resp" | grep -q "File saved successfully" || { echo "::error::server did not confirm msi save: $resp"; exit 1; }
+            else
+              echo "::notice::msi not found (non-ASCII appname by design), skipping upload"
+            fi
 
       - name: send file to api server
         if: ${{ env.rdgen == 'false' }}

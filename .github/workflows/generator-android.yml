@@ -713,7 +713,13 @@ jobs:
           retry_wait_seconds: 15
           shell: bash
           command: |
-            curl -i -X POST -H "Content-Type: multipart/form-data" -H "Authorization: Bearer ${{ env.token }}" -F "file=@./signed-apk/${{ env.filename }}-${{ matrix.job.arch }}.apk" -F "uuid=${{ env.uuid }}" ${{ secrets.GENURL }}/save_custom_client
+            # 必须 -f：不带 -f 时 curl 遇到 4xx/5xx（如 502）退出码仍是 0，
+            # 步骤恒绿、文件静默丢失（2026-10-22 的 32 位构建就是这样丢的；
+            # 没有 -f 时 retry 对 HTTP 错误同样无效，重试以为成功了）。
+            # 再校验响应体含 "File saved successfully"，双保险。
+            resp=$(curl -fsS -X POST -H "Content-Type: multipart/form-data" -H "Authorization: Bearer ${{ env.token }}" -F "file=@./signed-apk/${{ env.filename }}-${{ matrix.job.arch }}.apk" -F "uuid=${{ env.uuid }}" ${{ secrets.GENURL }}/save_custom_client) || { echo "::error::upload apk to rdgen server failed (curl exit $?)"; exit 1; }
+            echo "server response: $resp"
+            echo "$resp" | grep -q "File saved successfully" || { echo "::error::server did not confirm apk save: $resp"; exit 1; }
 
       - name: send file to api server
         if: ${{ env.rdgen == 'false' }}

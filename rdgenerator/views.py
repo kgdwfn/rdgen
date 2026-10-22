@@ -27,7 +27,12 @@ RDGEN_UUID_NS = uuid.UUID('9f3b2c1a-7d4e-4c8a-9b6f-1e2d3c4b5a6f')
 # only accept a UUID and a plain file name so "../" or absolute paths cannot escape png/ and exe/.
 # 客户端 uuid 允许类型前缀：BKD(仅被控) / KZD(仅主控) / QLB(双向)，后接标准 uuid。
 # 前缀用 (?:...)? 设为可选，兼容改版前已生成的旧 uuid，避免旧产物下载/回传被判定非法。
-_UUID_RE = re.compile(r'^(?:BKD|KZD|QLB)?[0-9a-fA-F-]{36}$')
+# 客户端 uuid 形如 <类型>_<平台>_<uuid5>，如 BKD_x64_xxx、KZD_Android_xxx、QLB_macOS_xxx。
+# 为兼容历史数据，正则对「类型前缀」和「平台段」均设为可选组：
+#   - 无前缀无平台段：改版最初的纯 uuid
+#   - 仅有类型前缀：56ba947 那版（BKD<uuid>）
+#   - 类型_平台_ 三段：当前格式
+_UUID_RE = re.compile(r'^(?:(?:BKD|KZD|QLB)(?:_(?:x64|x86|Android|Linux|macOS)_)?)?[0-9a-fA-F-]{36}$')
 _NAME_RE = re.compile(r'^[\w.-]+$')
 
 def _safe_parts(uuid_val, filename):
@@ -92,12 +97,37 @@ def _load_batch(batch_id):
         return None
 
 
-def _local_artifacts(uuid_val, platform):
+def _belongs_to_batch(name, filename, suffixes):
+    """判断产物文件名是否属于某批次：name == filename + 该平台的一种真实后缀。
+
+    windows 形如 filename.exe / filename.msi（rest 以 '.' 开头）；
+    Linux/Android/macOS 多架构形如 filename-armv7.apk（rest 以 '-' 开头）。
+    不能只查首字符：filename='app' 会误吞 'app.2.exe' 这种另一批次的名字，
+    必须让 rest 精确落在平台后缀集合里。suffixes 传小写形式。
+    """
+    if not name.startswith(filename):
+        return False
+    rest = name[len(filename):]
+    if not rest:
+        return False
+    low = rest.lower()
+    if low[0] == '.':
+        return low in suffixes
+    if low[0] == '-':
+        return any(low[1:].endswith(s) for s in suffixes)
+    return False
+
+
+def _local_artifacts(uuid_val, platform, filename=None):
     """返回 exe/{uuid}/ 下该平台产物的真实文件名列表。
 
     产物由 workflow 末尾 `save_custom_client` 回传落盘，文件出现即代表构建完成。
     这比 GitHub API 的 run 状态更早、更可靠，且是纯本地 IO（毫秒级），
     是「构建完成后立刻给出下载地址」的关键判据。
+
+    filename 非空时只保留本批次的文件：uuid 目录按「连接类型+平台」确定性复用、
+    不按批次隔离，不过滤会把历史版本（多人同配置时甚至是他人）的产物
+    全部列进结果页——既混乱也等于互相泄露构建产物。
     """
     if not uuid_val or not _safe_parts(uuid_val, None):
         return []
@@ -112,7 +142,10 @@ def _local_artifacts(uuid_val, platform):
         names = os.listdir(exe_dir)
     except OSError:
         return []
-    return sorted(f for f in names if f.lower().endswith(lowered))
+    names = sorted(f for f in names if f.lower().endswith(lowered))
+    if filename:
+        names = [f for f in names if _belongs_to_batch(f, filename, lowered)]
+    return names
 
 
 def _batch_status(batch):
@@ -140,11 +173,12 @@ def _batch_status(batch):
             'filename': filename,
         }
 
-        artifacts = _local_artifacts(uid, platform)
+        artifacts = _local_artifacts(uid, platform, filename)
         if artifacts:
             item.update({
                 'status': 'success',
                 'source': 'local',
+                'artifact_missing': False,
                 'log_url': b.get('log_url', ''),
                 'links': [
                     {'url': f"/download?uuid={uid}&filename={quote(n)}", 'name': n}
@@ -159,11 +193,16 @@ def _batch_status(batch):
         terminal = status in _TERMINAL_STATUSES
         if not terminal:
             all_terminal = False
+        # GitHub 判 success 但本地无产物 = 回传丢失（上传步被中断/服务器报错，
+        # 而 curl 不带 -f 时步骤仍会绿）。此时不能再拿 _download_links_for
+        # 拼假链接（点了必然 404），置 artifact_missing 让页面明说产物缺失。
+        missing = terminal and status == 'success' and not artifacts
         item.update({
             'status': status,
             'source': 'github',
+            'artifact_missing': missing,
             'log_url': st.get('github_log_url') or b.get('log_url', ''),
-            'links': _download_links_for(platform, uid, filename) if terminal else [],
+            'links': _download_links_for(platform, uid, filename) if (status == 'success' and not missing) else [],
         })
         builds.append(item)
 
@@ -336,13 +375,19 @@ def generate_custom_client(params, full_url):
         filename = "rustdesk"
     if not all(char.isascii() for char in appname):
         appname = "rustdesk"
-    # 按「连接类型 + 平台」派生稳定 uuid，并加类型前缀便于一眼区分：
-    #   仅被控(incoming) -> BKD，仅主控(outgoing) -> KZD，双向(both) -> QLB。
-    # 同类型同平台跨版本重建 → 相同 uuid → 旧客户端更新地址不变、能拿到新版；
-    # 不同类型/平台自然隔离。前缀仅作可读性标识，不改变派生的稳定性。
+    # 按「连接类型 + 平台」派生稳定 uuid，并加「类型_平台」前缀便于一眼区分：
+    #   仅被控(incoming) -> BKD，仅主控(outgoing) -> KZD，双向(both) -> QLB；
+    #   平台段：windows->x64, windows-x86->x86, linux->Linux, android->Android, macos->macOS。
+    # 形如 BKD_x64_<uuid5>。同类型同平台跨版本重建 → 相同 uuid → 旧客户端更新地址不变、
+    # 能拿到新版；不同类型/平台自然隔离。前缀仅作可读性标识，不改变派生的稳定性。
     _DIRECTION_PREFIX = {'incoming': 'BKD', 'outgoing': 'KZD', 'both': 'QLB'}
+    _PLATFORM_UUID_TAG = {
+        'windows': 'x64', 'windows-x86': 'x86', 'linux': 'Linux',
+        'android': 'Android', 'macos': 'macOS',
+    }
     prefix = _DIRECTION_PREFIX.get(direction, 'QLB')
-    myuuid = f"{prefix}{uuid.uuid5(RDGEN_UUID_NS, f'{direction}|{platform}')}"
+    plat_tag = _PLATFORM_UUID_TAG.get(platform, platform)
+    myuuid = f"{prefix}_{plat_tag}_{uuid.uuid5(RDGEN_UUID_NS, f'{direction}|{platform}')}"
 
     # 用户未填更新下载地址时，按平台自动拼出「工具域名 + 构建产物」作为更新链接
     effective_download_link = downloadLink
@@ -671,9 +716,11 @@ def _get_run_status(uuid_val):
         dict with 'found', 'status', 'github_log_url', and optionally 'gh_run'.
         If not found, 'found' is False.
     """
-    try:
-        gh_run = GithubRun.objects.get(uuid=uuid_val)
-    except GithubRun.DoesNotExist:
+    # 同一 uuid 可能对应多行 GithubRun：uuid 按「连接类型+平台」确定性派生，
+    # 同配置再次构建会复用同一 uuid 并新插一行。用 .get() 会抛
+    # MultipleObjectsReturned 把结果页/轮询打成 500，改取最新一行（id 最大）。
+    gh_run = GithubRun.objects.filter(uuid=uuid_val).order_by('-id').first()
+    if gh_run is None:
         return {"found": False}
 
     github_log_url = f"https://github.com/{_settings.GHUSER}/{_settings.REPONAME}/actions/runs/{gh_run.github_run_id}"
@@ -820,7 +867,18 @@ def download(request):
         from django.http import Http404
         raise Http404("Build not found")
     suffixes = _platform_suffixes(platform)
-    candidates = sorted(f for f in os.listdir(exe_dir) if any(f.endswith(s) for s in suffixes))
+    # 同一 uuid 目录会累积多个版本（uuid 按「类型+平台」确定性派生、不按批次
+    # 隔离，每次构建都往同一目录追加文件）。按文件名排序会把旧版本排在前面，
+    # 自动更新链接（/download?uuid=..&platform=..，不带 filename）于是把旧包
+    # 当新包发给客户端。改按修改时间新的优先，保证更新拿到的是最新构建。
+    try:
+        candidates = sorted(
+            (f for f in os.listdir(exe_dir) if any(f.endswith(s) for s in suffixes)),
+            key=lambda f: (os.path.getmtime(os.path.join(exe_dir, f)), f),
+            reverse=True,
+        )
+    except OSError:
+        candidates = []
     if not candidates:
         from django.http import Http404
         raise Http404("No package for this platform")

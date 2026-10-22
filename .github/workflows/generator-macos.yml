@@ -814,14 +814,23 @@ jobs:
 
       - name: send file to rdgen server
         if: ${{ env.rdgen == 'true' }}
-        shell: bash
-        run: |
-          curl -i -X POST \
-            -H "Content-Type: multipart/form-data" \
-            -H "Authorization: Bearer ${{ env.token }}" \
-            -F "file=@$GITHUB_WORKSPACE/${{ env.filename }}-${{ matrix.job.arch }}.dmg" \
-            -F "uuid=${{ env.uuid }}" \
-            "${{ secrets.GENURL }}/save_custom_client"
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 15
+          shell: bash
+          command: |
+            # 必须 -f + 响应体校验：curl 不带 -f 时 4xx/5xx（如 502）退出码仍是 0，
+            # 步骤恒绿、文件静默丢失。本步原来连重试都没有，一次中招就永久丢失。
+            f="$GITHUB_WORKSPACE/${{ env.filename }}-${{ matrix.job.arch }}.dmg"
+            if [ ! -f "$f" ]; then
+              echo "::notice::$f not found, skipping upload"
+            else
+              resp=$(curl -fsS -X POST -H "Content-Type: multipart/form-data" -H "Authorization: Bearer ${{ env.token }}" -F "file=@$f" -F "uuid=${{ env.uuid }}" ${{ secrets.GENURL }}/save_custom_client) || { echo "::error::upload $f failed (curl exit $?)"; exit 1; }
+              echo "server response: $resp"
+              echo "$resp" | grep -q "File saved successfully" || { echo "::error::server did not confirm save of $f: $resp"; exit 1; }
+            fi
         
 
       - name: send file to api server
