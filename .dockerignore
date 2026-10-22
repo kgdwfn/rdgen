@@ -14,3 +14,10 @@ LICENSE
 *.pyc
 .venv
 db.sqlite3
+
+# 运行时数据目录：由 docker-compose.yml 的 volumes 挂载进容器，
+# 不该进镜像（否则镜像会带一份构建时刻的陈旧快照，体积也暴涨；
+# 且一旦容器没挂载这些目录，页面会读到快照里的旧数据，上传的新包随容器重建即丢）。
+exe/
+png/
+temp_zips/

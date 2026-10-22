@@ -347,6 +347,8 @@ jobs:
           #      void handleUpdate(...) (1.4.x-1.5.0) and Future<void> ... async (master)
           #   5) custom clients skip the Rust-side silent background update entirely
           # MUST stay before the removeNewVersionNotif step so that option can still override.
+          # 注意：安卓版没有对应这一步（安卓不检测版本更新，根因见
+          # generator-android.yml 中「已知问题：安卓版不检测版本更新」注释块）。
           sed -i -e 's|!bind.isCustomClient()|true|' ./flutter/lib/desktop/pages/desktop_home_page.dart
           sed -i -e "s|bind.mainUriPrefixSync().contains('rustdesk')|true|" ./flutter/lib/desktop/pages/desktop_home_page.dart
           sed -i -e 's|if (!bind.isCustomClient()) {|if (true) {|' ./flutter/lib/common.dart

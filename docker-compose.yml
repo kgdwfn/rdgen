@@ -1,6 +1,18 @@
 services:
   rdgen:
     # build from local Dockerfile (carries our fixes) and tag as rdgen-rdgen
+    #
+    # ⚠️ 部署注意（2026-10-22 排查「改了没生效」）：
+    #    代码是 COPY 进镜像的（Dockerfile 的 `COPY . .`），volumes 里只挂了
+    #    exe/png/temp_zips 三个数据目录 —— **代码不在挂载范围内**。
+    #    所以 `docker compose up -d` / `restart` 不会带上新代码，容器继续跑旧镜像。
+    #    正确做法（宿主机有本仓库源码时）：
+    #        git pull && docker compose up -d --build
+    #    验证容器里是否已是新代码：
+    #        docker compose exec rdgen grep -n "_PLATFORM_UUID_TAG" /opt/rdgen/rdgenerator/views.py
+    #    （无输出 = 仍是旧代码）
+    #    另注：CI(.github/workflows/docker-build.yml) 推的是 <账号>/rdgen:latest，
+    #    与本文件的 image: rdgen-rdgen 不是同一个 tag；要走 CI 镜像需先对齐 tag。
     build: .
     image: rdgen-rdgen
     restart: unless-stopped

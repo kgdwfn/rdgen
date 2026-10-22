@@ -497,6 +497,31 @@ jobs:
           sed -i -e 's|https://rustdesk.com/download|${{ env.DOWNLOAD_LINK_SED }}|' ./flutter/lib/mobile/pages/connection_page.dart
           sed -i -e 's|https://rustdesk.com/download|${{ env.DOWNLOAD_LINK_SED }}|' ./src/ui/index.tis
 
+      # ── 已知问题：安卓版不检测版本更新（2026-10-22 排查，暂未修复）──────
+      # 现象：安卓客户端从不提示新版本。根因不是下载地址没换（上面
+      # 「change download link to custom」已把 https://rustdesk.com/download
+      # 换成自定义地址），而是「检测+显示」的三道闸门一道都没拆——
+      # 本 workflow 缺少 x64 的「custom update flow - show card and open
+      # browser on click」那一步：
+      #   ① flutter/lib/common.dart:4070（上游 master；1.4.9/1.5.0 同构）
+      #      checkUpdate() 里 `if (!bind.isCustomClient()) {` 之后才注册
+      #      kCheckSoftwareUpdateFinish 事件回调 → 不注册就不会去问版本号
+      #      → stateGlobal.updateUrl 恒为空（updateUrl 的唯一来源）
+      #   ② src/common.rs:1020  check_software_update() 首行
+      #      `if is_custom_client() { return; }` → Rust 侧直接返回。
+      #      is_custom_client() = get_app_name() != "RustDesk"（common.rs:2560），
+      #      rdgen 产物基本都改了应用名 → 恒为 true
+      #   ③ flutter/lib/mobile/pages/connection_page.dart:86(1.4.9)/:85(1.5.0)
+      #      `if (!bind.isCustomClient() && !isIOS)` → 移动端「下载新版本」
+      #      卡片永不渲染（onTap 里的地址已被上面 sed 换成自定义地址，
+      #      真正拦路的是这道闸门）
+      # 另：removeNewVersionNotif 步只改 desktop_home_page.dart 与 src/common.rs
+      # （桌面端），移动端对应的 connection_page.dart 未动 → 该开关在安卓上空转。
+      # 将来要修：照抄 generator-windows.yml 的「custom update flow」步，放开 ①③
+      # （② 决定是否要采用官方版本号），并给移动端补 updateUrl.isEmpty 的处理。
+      # 完整调查记录：.workbuddy/memory/2026-10-22.md
+      # ───────────────────────────────────────────────────────────────────────
+
       - name: allow custom.txt
         continue-on-error: true
         shell: bash
