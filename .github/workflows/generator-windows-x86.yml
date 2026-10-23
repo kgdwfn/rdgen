@@ -318,14 +318,28 @@ jobs:
           echo "=== ui.rs open_url after patch ==="
           grep -n 'FileProtocolHandler\|let p = "rundll32"' ./src/ui.rs || true
 
-      - name: ensure sciter window minimum size (fix cut-off install button)
+      - name: fix sciter window size (fixed initial size + hard minimum, no restore of last size)
         continue-on-error: true
         shell: bash
         run: |
-          # 上游 self.ready() 用保存的尺寸恢复窗口；若曾保存过过矮的尺寸，安装按钮会被裁掉。
-          # 恢复时把宽高钳制到最小 800x600（与首次启动默认一致），保证任意分辨率下安装按钮
-          # 完整可见；若保存尺寸 >= 屏幕工作区则走最大化分支，不会超出屏幕。
-          sed -i 's|: r\[2\], r\[3\]);|: Math.max(r[2], 800), Math.max(r[3], 600));|' ./src/ui/index.tis
+          # 【为什么这样改】
+          # 上游 self.ready() 的逻辑是「有保存过的尺寸就按它恢复，没有才用默认 800x600」。
+          # 1) `view.windowMinSize` 上游只有 560x300 —— 窗口可以被用户/系统缩到 300 高，
+          #    安装按钮与底部内容被裁；即使恢复时做了钳制，**运行中手动缩小后保存的
+          #    尺寸**仍会让下次启动复现同样问题（此前只改了恢复分支，没设最小尺寸，
+          #    所以实测「还是启用上次记录的大小」）。
+          # 2) 既然要求「固定初始/最小尺寸、任何分辨率都完整显示」，正确做法是**不再
+          #    恢复历史尺寸**，每次启动都走 else 分支的 centerize(800,600)。
+          #
+          # 三处改动（1.4.9 / 1.5.0 锚点均唯一命中，已用真实源码逐行核对）：
+          #   a) 非 incoming_only 的最小尺寸 560x300 -> 800x600（用户再也缩不小）
+          #   b) 恢复分支的条件恒假 -> 永远走 centerize(800,600)（不再读上次记录）
+          #   c) 恢复分支里的宽高钳制同步去掉（已是死代码，避免误导）
+          # incoming_only（仅被控）的窄条窗口 180x~ 是上游刻意设计，不动。
+          sed -i 's|view.windowMinSize = (scaleIt(560), scaleIt(300));|view.windowMinSize = (scaleIt(800), scaleIt(600));|' ./src/ui/index.tis
+          sed -i 's|if (isReasonableSize(r) && r\[2\] > 0) {|if (false /* fixed initial size: never restore last saved size */ \&\& isReasonableSize(r) \&\& r[2] > 0) {|' ./src/ui/index.tis
+          echo "=== index.tis window size after patch ==="
+          grep -n 'windowMinSize\|isReasonableSize(r)\|centerize' ./src/ui/index.tis
 
       - name: set server, serverPort, key, and apiserver
         continue-on-error: true

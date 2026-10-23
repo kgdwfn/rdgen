@@ -393,13 +393,26 @@ def generate_custom_client(params, full_url):
     hideAccountSettings = params.get('hideAccountSettings', False)
     # ========== 自定义结束 ==========
 
+    # 只把「构建脚本里会出事」的字符换掉：& \ | ' " $ ` 反引号与换行已在表单层
+    # (_reject_unsafe_name_chars) 拦掉；此处保留 ASCII 可见字符中的 '.'，
+    # 因为版本号本身就是点分隔的（BKD20261023_1.4.9），早先把 '.' 一并换成 '_'
+    # 会让页面上显示的文件名变成 BKD20261023_1_4_9，与用户填的名字对不上。
     if all(char.isascii() for char in filename):
-        filename = re.sub(r'[^\w\s-]', '_', filename).strip()
-        filename = filename.replace(" ","_")
+        filename = re.sub(r'[^\w\s.\-]', '_', filename).strip()
+        filename = filename.replace(" ", "_")
     else:
         filename = "rustdesk"
     if not all(char.isascii() for char in appname):
         appname = "rustdesk"
+    # Windows 两个平台产物同名（都落在各自 uuid 目录下，但用户下载到本地后
+    # 看到的是两个一模一样名字的 exe/msi），按平台补一段区分后缀：
+    #   Windows 64 位 -> <名字>_x64.exe / .msi
+    #   Windows 32 位 -> <名字>_x86.exe
+    # 其它平台（Linux/Android/macOS）产物名本身已带架构后缀（-aarch64.apk 等），
+    # 天然可区分，不追加，保持原样。
+    base_filename = filename
+    _PLATFORM_FILE_SUFFIX = {'windows': '_x64', 'windows-x86': '_x86'}
+    filename = base_filename + _PLATFORM_FILE_SUFFIX.get(platform, '')
     # 按「连接类型 + 平台」派生稳定 uuid，并加「类型_平台」前缀便于一眼区分：
     #   仅被控(incoming) -> BKD，仅主控(outgoing) -> KZD，双向(both) -> QLB；
     #   平台段：windows->x64, windows-x86->x86, linux->Linux, android->Android, macos->macOS。
@@ -713,6 +726,8 @@ def generate_custom_client(params, full_url):
                 "success": True,
                 "uuid": myuuid,
                 "filename": filename,
+                # 不带平台后缀的「原始文件名」，用于等待页/结果页的构建信息面板展示
+                "base_filename": base_filename,
                 "platform": platform,
                 "log_url": github_data.get('html_url')
             }
@@ -834,6 +849,10 @@ def generator_view(request):
             _save_batch({
                 'batch_id': batch_id,
                 'version': params.get('version') or '1.4.9',
+                # 类型（仅被控/仅主控/双向）供等待页与结果页展示
+                'direction': params.get('direction') or 'both',
+                'base_filename': next((b.get('base_filename') for b in builds
+                                       if b.get('base_filename')), ''),
                 'created_at': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'builds': [
                     {
@@ -1012,11 +1031,30 @@ def builds_result(request):
 
 
 def _batch_filename(batch):
-    """批次共用的文件名（= 表单里的 Name for EXE file），用于页面标题与构建信息面板。"""
+    """批次共用的文件名（= 表单里的 Name for EXE file），用于页面标题与构建信息面板。
+
+    优先用不带平台后缀的 base_filename：Windows 两个平台的产物名已按
+    _x64 / _x86 区分，但面板里展示的应是用户自己填的那个原始名字。
+    """
+    bf = batch.get('base_filename')
+    if bf:
+        return bf
     for b in batch.get('builds') or []:
         if b.get('filename'):
             return b['filename']
     return ''
+
+
+# 连接类型中文名（等待页/结果页「类型」行）
+_DIRECTION_LABELS = {
+    'incoming': '仅被控',
+    'outgoing': '仅主控',
+    'both': '双向',
+}
+
+
+def _batch_direction_label(batch):
+    return _DIRECTION_LABELS.get(batch.get('direction', ''), '')
 
 
 def builds_view(request, batch_id):
@@ -1030,6 +1068,7 @@ def builds_view(request, batch_id):
         'version': batch.get('version', ''),
         'created_at': batch.get('created_at', ''),
         'filename': _batch_filename(batch),
+        'direction_label': _batch_direction_label(batch),
         'builds': batch.get('builds', []),
     })
 
@@ -1054,6 +1093,7 @@ def builds_result_view(request, batch_id):
         'version': batch.get('version', ''),
         'created_at': batch.get('created_at', ''),
         'filename': _batch_filename(batch),
+        'direction_label': _batch_direction_label(batch),
         'builds': status['builds'],
     })
 

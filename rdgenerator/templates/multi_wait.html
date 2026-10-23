@@ -39,23 +39,14 @@
             box-shadow: 0 4px 12px rgba(52,152,219,0.35);
             letter-spacing: 0.5px;
         }
-        .batch-meta {
-            color: #888;
-            font-size: 0.82em;
-            margin-top: 6px;
-            word-break: break-all;
-        }
-        .batch-meta code {
-            background: rgba(0,0,0,0.06);
-            padding: 1px 6px;
-            border-radius: 4px;
-            font-family: 'SFMono-Regular', Consolas, monospace;
-        }
         .version-panel {
             background: rgba(255, 255, 255, 0.9);
             border-radius: 12px;
             padding: 16px 22px;
             margin-top: 20px;
+            /* 必须 border-box：否则 padding 加在 width 之外，面板比下面卡片宽一圈，
+               两者的 max-width 都是 520px 却对不齐。 */
+            box-sizing: border-box;
             width: 100%;
             max-width: 520px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.08);
@@ -86,8 +77,9 @@
         .build-card {
             background: rgba(255, 255, 255, 0.85);
             border-radius: 12px;
-            padding: 16px 20px;
+            padding: 14px 18px;
             margin: 10px 0;
+            box-sizing: border-box;   /* 同 .version-panel，保证两者外框等宽 */
             width: 100%;
             max-width: 520px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.08);
@@ -101,6 +93,12 @@
             display: flex;
             flex-direction: column;
             gap: 4px;
+        }
+        /* 「构建进行中」与「构建日志 ↗」同一行右侧 */
+        .status-row {
+            display: flex;
+            align-items: center;
+            gap: 18px;
         }
         .plat {
             font-weight: 700;
@@ -158,13 +156,21 @@
             margin: 20px auto;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        /* 卡片容器与「构建信息」面板同宽同左边缘：#builds 是 flex 子项，
+           不显式给宽度会按内容收缩，导致下面卡片比上面的框窄、左右不对齐。 */
+        #builds {
+            box-sizing: border-box;
+            width: 100%;
+            max-width: 520px;
+            display: flex;
+            flex-direction: column;
+        }
     </style>
 </head>
 <body>
     <h2>构建进行中</h2>
     {% if version %}<div class="version-badge">RustDesk {{ version }}</div>{% endif %}
     <div class="subtitle">共 {{ builds|length }} 个平台，整个过程大约需要 30–45 分钟。此页面会自动刷新。</div>
-    {% if batch_id %}<div class="batch-meta">构建单号 <code>{{ batch_id|slice:":8" }}</code>{% if created_at %} · {{ created_at }}{% endif %}</div>{% endif %}
     <div class="loading-spinner"></div>
 
     <div id="stale-tip" class="stale-tip" style="display:none;">
@@ -172,28 +178,31 @@
         <a href="/builds/{{ batch_id }}/result">直接打开结果页查看</a>，或在下方点「构建日志」核对。
     </div>
 
+    {% if batch_id %}
+    <div class="version-panel">
+        <div class="vp-title">构建信息</div>
+        <div class="vp-row"><span class="vp-label">RustDesk 版本</span><span class="vp-value">{% if version %}{{ version }}{% else %}—{% endif %}</span></div>
+        {% if direction_label %}<div class="vp-row"><span class="vp-label">类型</span><span class="vp-value">{{ direction_label }}</span></div>{% endif %}
+        <div class="vp-row"><span class="vp-label">文件名</span><span class="vp-value">{% if filename %}<code>{{ filename }}</code>{% else %}—{% endif %}</span></div>
+        <div class="vp-row"><span class="vp-label">构建单号</span><span class="vp-value"><code>{{ batch_id }}</code></span></div>
+        <div class="vp-row"><span class="vp-label">创建时间</span><span class="vp-value">{{ created_at|default:"—" }}</span></div>
+    </div>
+    {% endif %}
+
     <div id="builds">
         {% for b in builds %}
         <div class="build-card" data-uuid="{{ b.uuid }}">
             <div class="build-head">
                 <span class="plat">{{ b.platform_label }}</span>
-                <span class="status" id="status-{{ b.uuid }}">构建进行中…</span>
+                <span class="status-row">
+                    <span class="status" id="status-{{ b.uuid }}">构建进行中</span>
+                    <a class="log-link" href="{{ b.log_url }}" target="_blank">构建日志 ↗</a>
+                </span>
                 <div class="dl-links" id="links-{{ b.uuid }}"></div>
             </div>
-            <a class="log-link" href="{{ b.log_url }}" target="_blank">构建日志 ↗</a>
         </div>
         {% endfor %}
     </div>
-
-    {% if batch_id %}
-    <div class="version-panel">
-        <div class="vp-title">构建信息</div>
-        <div class="vp-row"><span class="vp-label">RustDesk 版本</span><span class="vp-value">{% if version %}{{ version }}{% else %}—{% endif %}</span></div>
-        <div class="vp-row"><span class="vp-label">构建单号</span><span class="vp-value"><code>{{ batch_id }}</code></span></div>
-        <div class="vp-row"><span class="vp-label">创建时间</span><span class="vp-value">{{ created_at|default:"—" }}</span></div>
-        <div class="vp-row"><span class="vp-label">文件名</span><span class="vp-value">{% if filename %}<code>{{ filename }}</code>{% else %}—{% endif %}</span></div>
-    </div>
-    {% endif %}
 
     <script>
         const BATCH_ID = "{{ batch_id }}";

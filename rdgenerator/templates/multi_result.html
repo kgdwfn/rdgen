@@ -50,6 +50,8 @@
             border-radius: 12px;
             padding: 16px 22px;
             margin-top: 20px;
+            /* border-box：padding 不额外撑宽，否则面板比下面卡片宽一圈、对不齐 */
+            box-sizing: border-box;
             width: 100%;
             max-width: 560px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.08);
@@ -82,6 +84,7 @@
             border-radius: 12px;
             padding: 20px 24px;
             margin: 12px 0;
+            box-sizing: border-box;   /* 同 .version-panel，保证外框等宽 */
             width: 100%;
             max-width: 560px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.08);
@@ -162,9 +165,10 @@
     <div class="version-panel">
         <div class="vp-title">构建信息</div>
         <div class="vp-row"><span class="vp-label">RustDesk 版本</span><span class="vp-value">{% if version %}{{ version }}{% else %}—{% endif %}</span></div>
+        {% if direction_label %}<div class="vp-row"><span class="vp-label">类型</span><span class="vp-value">{{ direction_label }}</span></div>{% endif %}
+        <div class="vp-row"><span class="vp-label">文件名</span><span class="vp-value">{% if filename %}<code>{{ filename }}</code>{% else %}—{% endif %}</span></div>
         <div class="vp-row"><span class="vp-label">构建单号</span><span class="vp-value"><code>{{ batch_id }}</code></span></div>
         <div class="vp-row"><span class="vp-label">创建时间</span><span class="vp-value">{{ created_at|default:"—" }}</span></div>
-        <div class="vp-row"><span class="vp-label">文件名</span><span class="vp-value">{% if filename %}<code>{{ filename }}</code>{% else %}—{% endif %}</span></div>
     </div>
     {% endif %}
 
