@@ -13,20 +13,29 @@ services:
     #    （无输出 = 仍是旧代码）
     #    另注：CI(.github/workflows/docker-build.yml) 推的是 <账号>/rdgen:latest，
     #    与本文件的 image: rdgen-rdgen 不是同一个 tag；要走 CI 镜像需先对齐 tag。
+    #
+    # ⚠️ 真实凭据请写在本文件同目录的 .env 里（已 gitignore，不会被提交/覆盖）：
+    #        GHUSER=你的GitHub账号
+    #        GHBEARER=你的GitHub访问令牌
+    #        GENURL=https://你的服务域名
+    #        SH_SECRET=
+    #    compose 会自动读取同目录 .env 做变量插值；下面的 ${VAR:-默认值} 表示
+    #    「.env 里没写就用占位符」。**不要把真实值直接写进本文件** ——
+    #    一旦 git pull 覆盖本文件，凭据就丢了（2026-10-23 就是这么全线构建失败的）。
     build: .
     image: rdgen-rdgen
     restart: unless-stopped
     environment:
       TZ: "Asia/Shanghai"
       SECRET_KEY: "django-insecure-!(t-!f#6g#sr%yfded9(xha)g+=!6craeez^cp+*&bz_7vdk61"
-      GHUSER: "github_username"
-      GHBEARER: "github_access_token"
-      GENURL: "accessible_url_of_server"
-      ZIP_PASSWORD: ""
+      GHUSER: "${GHUSER:-github_username}"
+      GHBEARER: "${GHBEARER:-github_access_token}"
+      GENURL: "${GENURL:-accessible_url_of_server}"
+      ZIP_PASSWORD: "${ZIP_PASSWORD:-}"
       GHBRANCH: "master"
       PROTOCOL: "https"
       REPONAME: "rdgen"
-      SH_SECRET: ""
+      SH_SECRET: "${SH_SECRET:-}"
     ports:
       - "8000:8000"
     dns:

@@ -272,6 +272,31 @@ def _platform_suffixes(platform):
     return ()
 
 
+# 服务器端配置自检：docker-compose.yml 里这几个值默认是占位符，忘记替换时
+# 派发会打到不存在的仓库 / 用无效令牌 → GitHub 直接拒绝 → 页面只显示
+# 「所有平台构建均失败」，排查成本极高。这里提前识别并给出可执行提示。
+_PLACEHOLDER_VALUES = {
+    'GHBEARER': 'github_access_token',
+    'GHUSER': 'github_username',
+    'GENURL': 'accessible_url_of_server',
+}
+
+
+def _config_problems():
+    """检查关键环境变量是否缺失或仍是 compose 里的占位符。
+
+    返回 [(配置项, 说明)]；空列表 = 配置正常。
+    """
+    problems = []
+    for key, placeholder in _PLACEHOLDER_VALUES.items():
+        val = (getattr(_settings, key, '') or '').strip()
+        if not val:
+            problems.append((key, f"{key} 未配置"))
+        elif val == placeholder:
+            problems.append((key, f"{key} 仍是 docker-compose.yml 里的占位符 {placeholder}"))
+    return problems
+
+
 def generate_custom_client(params, full_url):
     """
     Core generation logic shared by web form and JSON API.
@@ -692,15 +717,21 @@ def generate_custom_client(params, full_url):
                 "log_url": github_data.get('html_url')
             }
         else:
+            # 不再只报「被拒绝」：把 HTTP 状态码与 GitHub 的响应体带出去，
+            # 否则 401/404/422 全都表现为同一句「构建失败」，无从下手。
+            detail = (response.text or '').strip()[:300]
+            print(f"[rdgen] GitHub 派发被拒：HTTP {response.status_code} {detail}")
             return {
                 "success": False,
-                "error": "GitHub rejected the start request",
+                "error": f"GitHub 拒绝了构建请求（HTTP {response.status_code}）",
+                "detail": detail,
                 "status_code": 500
             }
     except Exception as e:
+        print(f"[rdgen] GitHub 派发异常：{e}")
         return {
             "success": False,
-            "error": f"Connection error: {str(e)}",
+            "error": f"连接 GitHub 失败：{e}",
             "status_code": 500
         }
 
@@ -758,10 +789,21 @@ def generator_view(request):
         form = GenerateForm(request.POST, request.FILES)
         if form.is_valid():
             params = form.cleaned_data
+            # 配置自检：凭据没配好时直接点名配置项，而不是笼统的「构建失败」
+            cfg = _config_problems()
+            blocking = [(k, m) for k, m in cfg if k in ('GHBEARER', 'GHUSER')]
+            if blocking:
+                detail = "；".join(m for _, m in blocking)
+                return JsonResponse({
+                    "error": f"服务器未配置 GitHub 凭据，无法派发构建：{detail}。"
+                             "请在 docker-compose.yml 的 environment 中填入真实值后"
+                             "重建容器（docker compose up -d --build）。"
+                }, status=500)
             full_url = f"{_settings.PROTOCOL}://{request.get_host()}" if _settings.GENURL else f"{_settings.PROTOCOL}://{request.get_host()}"
             # 平台多选：每个平台独立构建、各自 uuid 与下载链接
             platforms = params.get('platform') or ['windows']
             builds = []
+            failures = []
             for p in platforms:
                 single = dict(params)
                 single['platform'] = p
@@ -769,8 +811,23 @@ def generator_view(request):
                 if res.get('success'):
                     res['platform_label'] = _platform_label(res['platform'])
                     builds.append(res)
+                else:
+                    failures.append(res)
             if not builds:
-                return JsonResponse({"error": "所有平台构建均失败，请检查配置后重试。"}, status=500)
+                # 把首个失败原因带出来（401 令牌无效 / 404 仓库或 workflow 不存在 /
+                # 422 输入不合法 / 网络不通），否则用户只看到一句无用的提示。
+                reasons = []
+                for f in failures[:3]:
+                    r = f.get('error') or '未知错误'
+                    if f.get('detail'):
+                        r += f"：{f['detail']}"
+                    reasons.append(r)
+                msg = "所有平台构建均失败，请检查配置后重试。"
+                if reasons:
+                    msg += " 原因：" + "；".join(reasons)
+                if cfg:
+                    msg += " 另：" + "；".join(m for _, m in cfg)
+                return JsonResponse({"error": msg}, status=500)
             # 生成批次号并落盘，随后 302 到 /builds/<batch_id>：
             # 每次构建地址都不同，刷新/收藏/换设备都能回到这次构建。
             batch_id = _new_batch_id()
