@@ -341,6 +341,37 @@ jobs:
           echo "=== index.tis window size after patch ==="
           grep -n 'windowMinSize\|isReasonableSize(r)\|centerize' ./src/ui/index.tis
 
+      - name: add dismiss button to update card (keep install card reachable)
+        continue-on-error: true
+        shell: bash
+        # 【场景】仅被控 + 尚未安装到系统 + 服务端有新版本
+        # 【问题】index.tis 里 UpdateMe 与 InstallMe 都返回 <div .install-me>，
+        #        且在渲染列表里是**先后并列**的（不是覆盖）：
+        #            {(!is_win || is_installed() || disable_installation) ? "" : <InstallMe />}
+        #            {software_update_url && !disable_installation ? <UpdateMe /> : ""}
+        #        两个 .install-me 盒子纵向堆叠 -> 高度相加。而仅被控窗口只有 300/390 高
+        #        （见上面窗口尺寸那一步），装不下就溢出，底部状态被挤出视野。
+        # 【为什么不用「有更新就隐藏安装卡」】那会让仅被控用户失去安装入口。
+        # 【做法】给更新卡右上角加一个 ×，点了只隐藏更新卡（仅本次运行有效），
+        #        安装卡随即回到可见位置，用户可继续安装。双向/仅主控窗口本就够高
+        #        (800x600)，加了也不影响。
+        # 三处改动，sed 锚点均唯一（已用 1.4.9 真实源码 grep -c 校验 = 1）：
+        #   a) 新增全局开关 update_dismissed
+        #   b) UpdateMe 渲染条件加 !update_dismissed
+        #   c) render 里插右上角 × 按钮 + 对应 event（写法参照上游 TrustMe 的多 event）
+        # 样式全部内联，不动独立的 app.css。
+        # 补丁脚本用 base64 注入：Python 源码含三引号与缩进块，直接以 heredoc 写进
+        # YAML 会被解析器当成键（实测 safe_load 直接报 ScannerError）。
+        env:
+          DISMISS_PATCH_B64: "IyAtKi0gY29kaW5nOiB1dGYtOCAtKi0KIiIi57uZIFNjaXRlciDnmoQgVXBkYXRlTWUg5Y2h54mH5Yqg5Y+z5LiK6KeS5YWz6Zet5oyJ6ZKu77yIeDg2IC8g5LuF6KKr5o6n5Zy65pmv77yJ44CCIiIiCmltcG9ydCBpbwoKUCA9ICcuL3NyYy91aS9pbmRleC50aXMnCnMgPSBpby5vcGVuKFAsIGVuY29kaW5nPSd1dGYtOCcpLnJlYWQoKQoKQlROID0gKAogICAgJyAgICAgICAgICAgIDxkaXYgI2Rpc21pc3MtdXBkYXRlIC5saW5rIHRpdGxlPSJcdTUxNzNcdTk1ZWRcdTYzZDBcdTc5M2FcdWZmMGMnCiAgICAnXHU0ZTBkXHU1MThkXHU2M2QwXHU3OTNhXHU2NzJjXHU2YjIxXHU2NmY0XHU2NWIwIiAnCiAgICAnc3R5bGU9InBvc2l0aW9uOmFic29sdXRlOyByaWdodDowLjZlbTsgdG9wOjAuNGVtOyBmb250LXNpemU6MS4yZW07ICcKICAgICdsaW5lLWhlaWdodDoxOyB3aWR0aDoxLjRlbTsgaGVpZ2h0OjEuNGVtOyB0ZXh0LWFsaWduOmNlbnRlcjsgJwogICAgJ29wYWNpdHk6MC42OyI+XHUwMGQ3PC9kaXY+XG4nCikKCiMg5Y+q5ZyoIFVwZGF0ZU1lIOexu+S9k+WGheaUue+8jOmBv+WFjeivr+S8pCBJbnN0YWxsTWUgLyBVcGdyYWRlTWUg562J5ZCM5qC36L+U5ZueIC5pbnN0YWxsLW1lIOeahOe7hOS7tgpjaSA9IHMuaW5kZXgoJ2NsYXNzIFVwZGF0ZU1lOiBSZWFjdG9yLkNvbXBvbmVudCB7JykKaGVhZCwgdGFpbCA9IHNbOmNpXSwgc1tjaTpdCgojIGMxKSDlrrnlmajliqAgcG9zaXRpb246cmVsYXRpdmUgKyDmj5LlhaXlhbPpl63mjInpkq4KT0xEX1JFTkRFUiA9ICcgICAgICAgIHJldHVybiA8ZGl2IC5pbnN0YWxsLW1lPlxuJwpORVdfUkVOREVSID0gJyAgICAgICAgcmV0dXJuIDxkaXYgLmluc3RhbGwtbWUgc3R5bGU9InBvc2l0aW9uOnJlbGF0aXZlOyI+XG4nCmFzc2VydCB0YWlsLmNvdW50KE9MRF9SRU5ERVIpID49IDEsICdVcGRhdGVNZSByZW5kZXLlrrnlmajooYzmnKrlkb3kuK0nCnRhaWwgPSB0YWlsLnJlcGxhY2UoT0xEX1JFTkRFUiwgTkVXX1JFTkRFUiArIEJUTiwgMSkKCiMgYzIpIOaWsOWinuWFs+mXreS6i+S7tu+8jOaUvuWcqCBldmVudCBjbGljayAkKCNpbnN0YWxsLW1lKSDkuYvliY0KT0xEX0VWID0gKAogICAgJyAgICBldmVudCBjbGljayAkKCNpbnN0YWxsLW1lKSB7XG4nCiAgICAnICAgICAgICBoYW5kbGVyLm9wZW5fdXJsKCJodHRwczovL3J1c3RkZXNrLmNvbS9kb3dubG9hZCIpOycKKQpORVdfRVYgPSAoCiAgICAnICAgIGV2ZW50IGNsaWNrICQoI2Rpc21pc3MtdXBkYXRlKSB7XG4nCiAgICAnICAgICAgICB1cGRhdGVfZGlzbWlzc2VkID0gdHJ1ZTtcbicKICAgICcgICAgICAgIGFwcC51cGRhdGUoKTtcbicKICAgICcgICAgICAgIHJldHVybiB0cnVlO1xuJwogICAgJyAgICB9XG4nCiAgICAnXG4nCikgKyBPTERfRVYKYXNzZXJ0IHRhaWwuY291bnQoT0xEX0VWKSA9PSAxLCAn5YWz6Zet5LqL5Lu26ZSa54K55pyq5ZSv5LiA5ZG95LitJwp0YWlsID0gdGFpbC5yZXBsYWNlKE9MRF9FViwgTkVXX0VWLCAxKQoKaW8ub3BlbihQLCAndycsIGVuY29kaW5nPSd1dGYtOCcsIG5ld2xpbmU9JycpLndyaXRlKGhlYWQgKyB0YWlsKQpwcmludCgnaW5kZXgudGlzIFVwZGF0ZU1lIHBhdGNoZWQ6IGRpc21pc3MgYnV0dG9uICsgZXZlbnQgYWRkZWQnKQo="
+        run: |
+          sed -i 's|var software_update_url = "";|var software_update_url = "";\nvar update_dismissed = false;|' ./src/ui/index.tis
+          sed -i 's|{software_update_url \&\& !disable_installation ? <UpdateMe /> : ""}|{software_update_url \&\& !disable_installation \&\& !update_dismissed ? <UpdateMe /> : ""}|' ./src/ui/index.tis
+          echo "$DISMISS_PATCH_B64" | base64 -d > /tmp/patch_update_card.py
+          python3 /tmp/patch_update_card.py
+          echo "=== index.tis update card after patch ==="
+          grep -n 'update_dismissed\|dismiss-update' ./src/ui/index.tis
+
       - name: set server, serverPort, key, and apiserver
         continue-on-error: true
         shell: bash
