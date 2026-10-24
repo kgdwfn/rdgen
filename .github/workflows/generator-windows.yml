@@ -185,15 +185,28 @@ jobs:
       - name: always show powered-by
         # 上游 desktop_home_page.dart 以 if (bind.isCustomClient()) 包裹 loadPowered；
         # appname 留空或中文时 custom_.txt 无 app-name -> isCustomClient()=false -> 整句不渲染。
-        # 去掉该闸门，保证无论 appname 填不填都显示"由 X 提供支持"（文字由 compname 决定）。
+        # 去掉该闸门，保证无论 appname 填不填都显示公司名（powered_by_me 的值串已被
+        # set powered-by text to compname 整串替换为 compname，最终只显示公司名）。
         # 同时把 loadPowered 的字号从上游的 9 放大到 14（该串在 1.4.0-master 全版本均唯一出现 1 次）。
         # 再补上仅主控(outgoing only)时左下角那个齿轮：它走 buildPopupMenu -> onAddSetting，
         # 上游没有 isDisableSettings() 闸门，所以"禁用设置"对仅主控无效。
+        # 最后把左栏加宽：上游仅主控/双向只有 200px、仅被控 280px，
+        # 14px 的公司名放 20 个汉字必然折行/被裁，统一加宽到 370px 单行放得下。
         shell: bash
         run: |
           sed -i -e 's|if (bind.isCustomClient())|// custom: powered-by always shown|' ./flutter/lib/desktop/pages/desktop_home_page.dart
           sed -i -e 's|?.copyWith(fontSize: 9, decoration: TextDecoration.underline)|?.copyWith(fontSize: 14, decoration: TextDecoration.underline)|' ./flutter/lib/common.dart
           sed -i -e 's|^                        buildPopupMenu(context)$|                        if (!bind.isDisableSettings()) buildPopupMenu(context)|' ./flutter/lib/desktop/pages/desktop_home_page.dart
+          # 左栏统一加宽到 370：实测仅被控 280px 单行可放 17 个汉字（≈16.47px/字），
+          # 20 个汉字需 ≈329px，370px 单行放得下（容量约 22 字）。
+          # 注意 powered_by_me 的值串已被 set powered-by text to compname 整串替换为
+          # compname，最终只显示公司名，不含"由…提供支持"。
+          sed -i -e 's|width: isIncomingOnly ? 280.0 : 200.0,|width: 370.0,|' ./flutter/lib/desktop/pages/desktop_home_page.dart
+          # powered_by_me 单行显示，绝不再折行（长公司名时裁切而非换行）
+          sed -i -e 's|overflow: TextOverflow.clip,|maxLines: 1, softWrap: false, overflow: TextOverflow.clip,|' ./flutter/lib/common.dart
+          echo "=== left pane / powered after patch ==="
+          grep -n 'width: 370.0' ./flutter/lib/desktop/pages/desktop_home_page.dart
+          grep -n 'maxLines: 1, softWrap: false' ./flutter/lib/common.dart
 
       - name: apply display name
         # 界面显示名称（可中文）：只影响 UI 文案与窗口标题。
