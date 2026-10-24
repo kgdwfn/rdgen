@@ -140,7 +140,16 @@
     {% for b in builds %}
     <div class="build-card">
         <h3>{{ b.platform_label }}</h3>
-        {% if b.status == 'success' %}
+        {% if b.msi_pending %}
+        {# Windows 64 位 msi 比 exe 晚 20-40 秒落地：此刻 exe 已可下载，页面自动刷新等 msi #}
+        <div class="status">状态：msi 安装包上传中，稍候自动刷新…</div>
+        <div class="downloads">
+            {% for link in b.links %}
+            <a class="download-link" href="{{ link.url }}">下载 {{ link.name }}</a>
+            {% endfor %}
+        </div>
+        {% if b.log_url %}<a class="log-link" href="{{ b.log_url }}" target="_blank">查看构建日志 ↗</a>{% endif %}
+        {% elif b.status == 'success' %}
             {% if b.artifact_missing %}
             <div class="status done">状态：构建成功</div>
             <div class="warn">产物回传缺失：构建已完成，但服务器未收到该平台的文件（上传步骤被中断或服务器返回错误，例如 502）。请重新构建该平台；若多次缺失，请查看构建日志中 “send file to rdgen server” 一步服务器返回的状态码。</div>
@@ -173,5 +182,20 @@
     {% endif %}
 
     <a class="back-link" href="/">← 返回配置页面</a>
+
+    {% if auto_refresh %}
+    <script>
+        // Windows 64 位 msi 比 exe 晚 20-40 秒落地（views._windows_msi_pending）。
+        // 结果页是服务端一次性渲染：落在窗口内只会显示 exe。这里自动重载等 msi，
+        // 上限 20 次（约 5 分钟）；msi 落地或 run 终态后该脚本不再渲染。
+        (function () {
+            var left = 20;
+            var t = setInterval(function () {
+                if (--left <= 0) { clearInterval(t); return; }
+                location.reload();
+            }, 15000);
+        })();
+    </script>
+    {% endif %}
 </body>
 </html>

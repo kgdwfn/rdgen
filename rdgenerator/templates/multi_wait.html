@@ -212,7 +212,10 @@
             'pending': '等待中', 'in_progress': '构建进行中', 'completed': '已完成',
             'success': '构建成功', 'failure': '构建失败', 'cancelled': '已取消',
             'timed_out': '已超时', 'skipped': '已跳过', 'action_required': '需要人工处理',
-            'unknown': '状态未知'
+            'unknown': '状态未知',
+            // GithubRun 建行时的初始 status（_get_run_status 在 run 完成前原样返回），
+            // 不映射会把英文串直接显示在等待页上。
+            'Starting generator...please wait': '构建进行中'
         };
         const DONE = ['success'];
         const FAIL = ['failure', 'cancelled', 'timed_out', 'skipped', 'action_required'];

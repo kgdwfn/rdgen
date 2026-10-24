@@ -148,6 +148,31 @@ def _local_artifacts(uuid_val, platform, filename=None):
     return names
 
 
+# Windows 64 位产物是 exe + msi 一对，但 workflow 里 exe 先上传、msi 晚 20-40 秒
+# （签名/打包步之间）。此刻若就判 success，等待页会立刻跳结果页，而结果页是
+# 一次性静态渲染、不自动刷新——落在窗口内的页面永远只有 exe 按钮
+# （2026-10-24 仅被控/双向两个批次均复现：msi 明明已在服务器上，页面不显示）。
+# 因此产物不全时先问 GitHub：run 没终态就继续等；已终态（msi 按设计不产，
+# 如非 ASCII appname）或超龄才放行。3 分钟 mtime 兜底：GitHub API 挂掉时
+# 也不会把用户困在等待页。
+_MSI_GRACE_SECONDS = 180
+
+
+def _windows_msi_pending(uuid_val, filename, artifacts):
+    """Windows 64 位是否还在等 msi：有 exe、无 msi，且 exe 是刚落地的。"""
+    if not filename:
+        return False
+    names = set(artifacts)
+    if f"{filename}.exe" not in names or f"{filename}.msi" in names:
+        return False
+    try:
+        age = datetime.datetime.now().timestamp() - os.path.getmtime(
+            os.path.join('exe', uuid_val, f"{filename}.exe"))
+    except OSError:
+        return False
+    return age < _MSI_GRACE_SECONDS
+
+
 def _batch_status(batch):
     """按批次汇总各平台实时状态、日志链接与（终态时的）下载链接。
 
@@ -175,6 +200,41 @@ def _batch_status(batch):
 
         artifacts = _local_artifacts(uid, platform, filename)
         if artifacts:
+            # Windows 64 位 msi 晚到：见 _windows_msi_pending 注释。
+            if platform == 'windows' and _windows_msi_pending(uid, filename, artifacts):
+                st = _get_run_status(uid)
+                run_status = st['status'] if st.get('found') else ''
+                if run_status not in _TERMINAL_STATUSES:
+                    # run 还在跑：msi 大概率正在路上，继续等。all_terminal 不置真，
+                    # 等待页才不会在这个窗口跳结果页（结果页静态渲染，跳过去就
+                    # 永远只剩 exe 按钮）；msi_pending 供结果页挂自动重载。
+                    all_terminal = False
+                    item.update({
+                        'status': run_status or 'in_progress',
+                        'source': 'github',
+                        'artifact_missing': False,
+                        'msi_pending': True,
+                        'log_url': st.get('github_log_url') or b.get('log_url', ''),
+                        'links': [
+                            {'url': f"/download?uuid={uid}&filename={quote(n)}", 'name': n}
+                            for n in artifacts
+                        ],
+                    })
+                    builds.append(item)
+                    continue
+                if run_status != 'success':
+                    # run 已终态且非成功：msi 不会来了（构建/上传失败）。
+                    # 报真实结论，不再拿残缺产物冒充 success 并给死链。
+                    item.update({
+                        'status': run_status,
+                        'source': 'github',
+                        'artifact_missing': False,
+                        'log_url': st.get('github_log_url') or b.get('log_url', ''),
+                        'links': [],
+                    })
+                    builds.append(item)
+                    continue
+                # run 成功但没有 msi：按设计跳过（非 ASCII appname 等），放行。
             item.update({
                 'status': 'success',
                 'source': 'local',
@@ -1095,6 +1155,10 @@ def builds_result_view(request, batch_id):
         'filename': _batch_filename(batch),
         'direction_label': _batch_direction_label(batch),
         'builds': status['builds'],
+        # 有平台在等 msi（exe 已到、msi 在路上）：结果页是一次性渲染，不自动
+        # 刷新就会永远缺 msi 按钮。给模板挂自动重载；msi 落地或 run 终态后
+        # msi_pending 消失、脚本不再渲染，页面随即停止刷新。
+        'auto_refresh': any(b.get('msi_pending') for b in status['builds']),
     })
 
 
