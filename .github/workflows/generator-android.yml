@@ -13,6 +13,11 @@ on:
         required: true
         default: ''
         type: string
+      app_version:
+        description: 'custom app version string (overrides build version)'
+        required: false
+        default: ''
+        type: string
 
 
 env:
@@ -27,7 +32,7 @@ env:
   # for arm64 linux because official Dart SDK does not work
   FLUTTER_ELINUX_VERSION: "3.16.9"
   TAG_NAME: "${{ inputs.upload-tag }}"
-  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+  VCPKG_BINARY_SOURCES: "clear"
   # vcpkg version: 2024.07.12
   VCPKG_COMMIT_ID: "9e593bb18ea69cc5095e012465dcd675a822ed0d"
   ARMV7_VCPKG_COMMIT_ID: "6f29f12e82a8293156836ad81cc9bf5af41fe836"
@@ -188,6 +193,44 @@ jobs:
           repository: rustdesk/rustdesk
           submodules: recursive
 
+      - name: Set custom app version
+        continue-on-error: true
+        if: ${{ inputs.app_version != '' }}
+        shell: bash
+        run: |
+          sed -i -e 's|^version = ".*"|version = "${{ inputs.app_version }}"|' ./Cargo.toml
+          sed -i '/name = "rustdesk"/ {n; s/version = ".*"/version = "${{ inputs.app_version }}"/}' ./Cargo.lock
+          grep '^version = ' ./Cargo.toml
+
+      - name: Apply allow_custom_update patch
+        continue-on-error: true
+        if: ${{ env.update_public_key != '' }}
+        shell: bash
+        run: |
+          curl -sSL -o allow_custom_update.py https://raw.githubusercontent.com/bryangerlach/rdgen/refs/heads/master/.github/patches/allow_custom_update.py
+          python3 allow_custom_update.py \
+            --rustdesk-root . \
+            --update-url "${{ env.downloadLink}}/api/version/latest" \
+            --ed25519-public-key "${{ env.update_public_key }}"
+
+      - name: Patch Android Manifest and Gradle for AGP 8+
+        run: |
+          MANIFEST_PATH="flutter/android/app/src/main/AndroidManifest.xml"
+          BUILD_GRADLE_PATH="flutter/android/app/build.gradle"
+
+          echo "Removing package attribute from AndroidManifest.xml..."
+          # This uses sed to safely strip out package="com.carriez.flutter_hbb"
+          sed -i 's/package="com.carriez.flutter_hbb"//g' "$MANIFEST_PATH"
+
+          echo "Ensuring namespace is set in build.gradle..."
+          # This checks if 'namespace' already exists; if not, it injects it under the android { block
+          if ! grep -q "namespace" "$BUILD_GRADLE_PATH"; then
+            sed -i '/android {/a \    namespace "com.carriez.flutter_hbb"' "$BUILD_GRADLE_PATH"
+            echo "Namespace injected successfully."
+          else
+            echo "Namespace already exists in build.gradle."
+          fi
+
       - name: Install flutter
         uses: subosito/flutter-action@v2
         with:
@@ -207,7 +250,15 @@ jobs:
           ndk-version: ${{ env.NDK_VERSION }}
           add-to-path: true
 
-      - name: Setup vcpkg with Github Actions binary cache
+      - name: Restore vcpkg installed cache
+        uses: actions/cache@v4
+        with:
+          path: /opt/artifacts/vcpkg/installed
+          key: vcpkg-android-${{ env.VCPKG_COMMIT_ID }}-${{ matrix.job.target }}
+          restore-keys: |
+            vcpkg-android-${{ env.VCPKG_COMMIT_ID }}-
+
+      - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
         with:
           vcpkgDirectory: /opt/artifacts/vcpkg
@@ -242,6 +293,13 @@ jobs:
           fi
         shell: bash
 
+      - name: Save vcpkg installed cache
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: /opt/artifacts/vcpkg/installed
+          key: vcpkg-android-${{ env.VCPKG_COMMIT_ID }}-${{ matrix.job.target }}
+        
       - name: Restore bridge files
         uses: actions/download-artifact@master
         with:
@@ -468,7 +526,7 @@ jobs:
         run: |
           KOTLIN=./flutter/android/app/src/main/kotlin/com/carriez/flutter_hbb/MainService.kt
           DART=./flutter/lib/models/native_model.dart
-          sed -i "s|FFI.startServer(configPath, \"\")|FFI.startServer(configPath, \"${{ env.custom }}\")|" "$KOTLIN"
+          sed -i -E "s|FFI\.startServer\(configPath, (homePath, )?\"\"\)|FFI.startServer(configPath, \1\"${{ env.custom }}\")|" "$KOTLIN"
           sed -i "s|customClientConfig: '',|customClientConfig: '${{ env.custom }}',|" "$DART"
           echo "--- verify ---"
           grep -n 'FFI.startServer(configPath' "$KOTLIN" | sed 's/\(.\{80\}\).*/\1.../'
@@ -523,12 +581,18 @@ jobs:
       # ───────────────────────────────────────────────────────────────────────
 
       - name: allow custom.txt
-        continue-on-error: true
-        shell: bash
-        run: |
-          sed -i -e '/const KEY:/,/};/d' ./src/common.rs
-          sed -i -e '/let Ok(data) = sign::verify(&data, &pk)/,/};/d' ./src/common.rs
-          # sed -i '/intl:/a \ \ archive: ^3.6.1' ./flutter/pubspec.yaml
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_wait_seconds: 15
+          shell: bash
+          command: |
+            wget https://raw.githubusercontent.com/bryangerlach/rdgen/refs/heads/master/.github/patches/allowCustom.py
+            python allowCustom.py
+            wget https://raw.githubusercontent.com/bryangerlach/rdgen/refs/heads/master/.github/patches/removeSetupServerTip.diff
+            git apply removeSetupServerTip.diff
+            echo -n '${{ env.custom }}' > ./custom_.txt
 
       - name: Remove scam alert on Android
         shell: bash

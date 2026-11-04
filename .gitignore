@@ -4,3 +4,6 @@ gunicorn.conf
 .venv
 # 真实凭据（GitHub 令牌等），只放本地、绝不提交
 .env
+# 构建/运行产生的产物，不进版本库
+*.zip
+*.png
