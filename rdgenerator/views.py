@@ -372,7 +372,7 @@ def generate_custom_client(params, full_url):
     user_secret = params.get('sh_secret_field', '')
     selfhosted = (_settings.SH_SECRET == user_secret)
     platform = params.get('platform', 'windows')
-    version = params.get('version', '1.4.9')
+    version = params.get('version', '1.5.1')
     delayFix = params.get('delayFix', True)
     xOffline = params.get('xOffline', False)
     hidecm = params.get('hidecm', False)

@@ -38,6 +38,7 @@ class GenerateForm(forms.Form):
         # ========== 新增：为服务器配置字段添加 placeholder ==========
         placeholders = {
             'serverIP': 'rs-ny.rustdesk.com',
+            'serverPort':'21116',
             'key': 'OeVuKk5nlHiXp+APNn0Y3pC1Iwpwn44JGqrQCsWqmBw=',
             'apiServer': 'https://api.rustdesk.com:21114',
             'urlLink': 'https://rustdesk.com',
@@ -56,7 +57,7 @@ class GenerateForm(forms.Form):
         widget=forms.CheckboxSelectMultiple,
         initial=['windows']
     )
-    version = forms.ChoiceField(choices=[('master','nightly'),('1.5.0','1.5.0'),('1.4.9','1.4.9'),('1.4.8','1.4.8'),('1.4.7','1.4.7'),('1.4.6','1.4.6'),('1.4.5','1.4.5'),('1.4.4','1.4.4'),('1.4.3','1.4.3'),('1.4.2','1.4.2'),('1.4.1','1.4.1'),('1.4.0','1.4.0')], initial='1.5.0')
+    version = forms.ChoiceField(choices=[('master','nightly'),('1.5.1','1.5.1'),('1.5.0','1.5.0'),('1.4.9','1.4.9'),('1.4.8','1.4.8'),('1.4.7','1.4.7'),('1.4.6','1.4.6'),('1.4.5','1.4.5'),('1.4.4','1.4.4'),('1.4.3','1.4.3'),('1.4.2','1.4.2'),('1.4.1','1.4.1'),('1.4.0','1.4.0')], initial='1.5.1')
     help_text="'master' is the development version (nightly build) with the latest features but may be less stable"
     delayFix = forms.BooleanField(initial=True, required=False)
 
