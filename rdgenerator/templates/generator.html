@@ -260,6 +260,185 @@
             line-height: 1.4;
         }
 
+        /* ========== 高级设置键目录选择器 ========== */
+        .adv-hint {
+            margin: 4px 0 0;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            line-height: 1.5;
+        }
+        .adv-hint code {
+            color: var(--neon-blue);
+            background: rgba(0, 212, 255, 0.08);
+            padding: 1px 5px;
+            border-radius: 4px;
+        }
+        .adv-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .adv-toolbar input[type="search"] {
+            flex: 1 1 220px;
+            margin: 0;
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 0.85rem;
+        }
+        .adv-toolbar input[type="search"]:focus {
+            outline: none;
+            border-color: var(--neon-blue);
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.12);
+        }
+        .adv-filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .adv-filters button {
+            padding: 5px 12px;
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text-secondary);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            font-size: 0.78rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .adv-filters button:hover {
+            color: var(--text-primary);
+            border-color: rgba(255, 255, 255, 0.25);
+        }
+        .adv-filters button.is-on {
+            border-color: var(--neon-blue);
+            background: rgba(0, 212, 255, 0.12);
+            color: var(--neon-blue);
+        }
+        .adv-note {
+            min-height: 17px;
+            margin: 8px 0 0;
+            color: #7fb0ff;
+            font-size: 0.78rem;
+            line-height: 1.4;
+        }
+        .adv-note.is-bad {
+            color: #ff8a80;
+        }
+        .adv-catalog {
+            max-height: 320px;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.25);
+            border: 1px solid var(--card-border);
+            border-radius: 10px;
+            margin-top: 6px;
+        }
+        .adv-group {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            padding: 10px 12px 4px;
+            background: rgba(10, 14, 39, 0.95);
+            color: #f0a132;
+            font-size: 0.7rem;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+        .adv-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 2px 10px;
+            padding: 8px 12px 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .adv-row.is-owned {
+            opacity: 0.74;
+        }
+        .adv-row.is-future {
+            opacity: 0.58;
+        }
+        .adv-row.is-in {
+            background: rgba(0, 212, 255, 0.09);
+        }
+        .adv-k {
+            color: var(--text-primary);
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 0.78rem;
+            word-break: break-all;
+        }
+        .adv-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            justify-content: flex-end;
+        }
+        .adv-badge {
+            padding: 1px 7px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 999px;
+            color: var(--text-secondary);
+            font-size: 0.65rem;
+            letter-spacing: 0.04em;
+            white-space: nowrap;
+        }
+        .adv-badge.owned {
+            color: #8fb8e8;
+            border-color: #35577c;
+        }
+        .adv-badge.useful {
+            color: #f0a132;
+            border-color: #7a5719;
+        }
+        .adv-badge.future {
+            color: #ff8a80;
+            border-color: #7a3b36;
+        }
+        .adv-badge.placed {
+            color: #6fd68f;
+            border-color: #2f6b42;
+        }
+        .adv-meta {
+            grid-column: 1 / -1;
+            color: var(--text-secondary);
+            font-size: 0.73rem;
+            line-height: 1.4;
+        }
+        .adv-vals {
+            color: #cbd5e0;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 0.7rem;
+        }
+        .adv-insert {
+            display: flex;
+            grid-column: 1 / -1;
+            gap: 6px;
+            margin-top: 6px;
+        }
+        .adv-insert button {
+            padding: 3px 10px;
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text-secondary);
+            border: 1px solid var(--card-border);
+            border-radius: 6px;
+            font-size: 0.72rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .adv-insert button:hover {
+            background: rgba(0, 212, 255, 0.12);
+            border-color: var(--neon-blue);
+            color: var(--neon-blue);
+        }
+        .adv-empty {
+            padding: 18px 12px;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+        }
+
         /* ========== 密码框容器 ========== */
         .password-wrapper {
             position: relative;
@@ -1188,12 +1367,26 @@
                                 <label class="form-check-label" for="{{ form.showQualityMonitor.id_for_label }}">显示质量监视器</label>
                             </div>
                         </div>
-                        <div class="mb-3" style="flex: 1;">
+                        <p class="adv-hint">
+                            官方 RustDesk <code>key=value</code> 配置行。<strong>默认设置</strong> = 首次运行值，用户仍可在客户端中修改；<strong>覆盖设置</strong> = 锁定，优先级最高。
+                            搜索或点击下方键名可插入一条现成配置行，再在文本框中修改其值；表单上方已包含的键会带标记。
+                        </p>
+                        <div class="adv-toolbar">
+                            <input type="search" id="adv-search" placeholder="搜索设置键，如 tray、password、whitelist..." spellcheck="false" autocomplete="off" aria-label="搜索高级设置键">
+                            <div class="adv-filters" role="group" aria-label="筛选高级设置键">
+                                <button type="button" class="is-on" data-adv-filter="all">全部</button>
+                                <button type="button" data-adv-filter="useful">推荐</button>
+                                <button type="button" data-adv-filter="owned">本表单已含</button>
+                            </div>
+                        </div>
+                        <p class="adv-note" id="adv-note" aria-live="polite"></p>
+                        <div class="adv-catalog" id="adv-list" role="list" aria-label="RustDesk 高级设置键目录"></div>
+                        <div class="mb-3">
                             <label for="{{ form.defaultManual.id_for_label }}" class="form-label">默认设置 (JSON):</label>
                             {{ form.defaultManual }}
                         </div>
-                        <div class="mb-3" style="flex: 1;">
-                            <label for="{{ form.overrideManual.id_for_label }}" class="form-label">覆盖设置 (JSON):</label>
+                        <div class="mb-3">
+                            <label for="{{ form.overrideManual.id_for_label }}" class="form-label">覆盖设置 (JSON，锁定，最高优先级):</label>
                             {{ form.overrideManual }}
                         </div>
                         <div class="text-center" style="flex-shrink: 0; margin-top: auto;">
@@ -1212,6 +1405,8 @@
                 </div>
             </div>
         </form>
+
+        {{ advanced_keys|json_script:"advanced-keys-data" }}
 
         <div style="text-align: center; margin: 16px 0 24px;">
             <a href="https://github.com/bryangerlach/rdgen" target="_blank" class="sponsor-button">
@@ -1552,6 +1747,249 @@
             networkCheckbox.addEventListener('change', toggleSubCheckboxes);
             toggleSubCheckboxes();
         }
+
+        // ── 高级设置键目录选择器 ───────────────────────────────
+        // 键目录来自 advanced_keys.py（官方 RustDesk 文档）。
+        // 点击行会把 "key=sample" 插入默认/覆盖文本框（同键替换，不重复），
+        // 值仍可手工编辑；两个文本框始终是提交的数据源。
+        const ADVANCED_KEYS = (function () {
+            const el = document.getElementById('advanced-keys-data');
+            if (!el) return [];
+            try {
+                return JSON.parse(el.textContent) || [];
+            } catch (err) {
+                console.warn('高级设置键目录解析失败', err);
+                return [];
+            }
+        })();
+        let advFilter = 'all';
+
+        function advEsc(value) {
+            return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+            });
+        }
+
+        function advTextarea(which) {
+            const id = which === 'override' ? 'id_overrideManual' : 'id_defaultManual';
+            return document.getElementById(id);
+        }
+
+        function advPin() {
+            const el = document.getElementById('id_version');
+            return (el && el.value.trim()) || '';
+        }
+
+        // 带版本门槛的键仍然列出，但标记为"当前构建不支持"。
+        // nightly（master）视为最新版。
+        function advVersionNewer(min) {
+            if (!min) return false;
+            const pin = advPin();
+            if (!pin || !/^\d/.test(pin)) return false;
+            const wanted = String(min).split('.').map(function (n) {
+                return parseInt(n, 10) || 0;
+            });
+            const build = pin.split('.').map(function (n) {
+                return parseInt(n, 10) || 0;
+            });
+            for (let i = 0; i < 3; i++) {
+                if ((wanted[i] || 0) > (build[i] || 0)) return true;
+                if ((wanted[i] || 0) < (build[i] || 0)) return false;
+            }
+            return false;
+        }
+
+        function advNote(msg, bad) {
+            const el = document.getElementById('adv-note');
+            if (!el) return;
+            el.textContent = msg || '';
+            el.classList.toggle('is-bad', !!bad);
+        }
+
+        // 两个文本框中已存在的键，用于"已在默认/已在覆盖"徽标与同键替换。
+        function advPlacedKeys() {
+            const both = { 'default': {}, 'override': {} };
+            ['default', 'override'].forEach(function (which) {
+                const ta = advTextarea(which);
+                if (!ta) return;
+                String(ta.value || '').split(/\r?\n/).forEach(function (raw) {
+                    const line = raw.trim();
+                    const eq = line.indexOf('=');
+                    if (eq < 1) return;
+                    const key = line.slice(0, eq).trim();
+                    if (key) both[which][key] = true;
+                });
+            });
+            return both;
+        }
+
+        function advInsert(item, which) {
+            const ta = advTextarea(which);
+            if (!ta) return;
+            const target = which === 'override' ? '覆盖' : '默认';
+            const sample = item.sample == null ? '' : item.sample;
+            const line = item.key + '=' + sample;
+            const kept = [];
+            let found = false;
+
+            String(ta.value || '').split(/\r?\n/).forEach(function (raw) {
+                const trimmed = raw.trim();
+                const eq = trimmed.indexOf('=');
+                const key = eq > 0 ? trimmed.slice(0, eq).trim() : '';
+                if (key === item.key) {
+                    // 保留第一处位置，去掉重复行。
+                    if (!found) {
+                        kept.push(line);
+                        found = true;
+                    }
+                } else {
+                    kept.push(raw.replace(/\s+$/, ''));
+                }
+            });
+            if (!found) kept.push(line);
+            while (kept.length && !kept[0].trim()) kept.shift();
+            while (kept.length && !kept[kept.length - 1].trim()) kept.pop();
+
+            ta.value = kept.join('\n') + (kept.length ? '\n' : '');
+            ta.dispatchEvent(new Event('input', { bubbles: true }));
+            ta.focus();
+            if (ta.setSelectionRange) {
+                const end = ta.value.length;
+                ta.setSelectionRange(end, end);
+            }
+
+            if (advVersionNewer(item.min)) {
+                advNote(item.key + ' 需要 RustDesk ' + item.min + '，当前构建为 '
+                    + advPin() + '，客户端将忽略此键。', true);
+            } else if (item.owned) {
+                advNote(item.key + ' 已由上方「' + item.owned + '」区块设置，在此插入会覆盖'
+                    + target + '设置中的该值。');
+            } else {
+                advNote(item.key + ' 已插入到' + target + '设置。');
+            }
+        }
+
+        function renderAdvList() {
+            const host = document.getElementById('adv-list');
+            if (!host) return;
+            const scrollTop = host.scrollTop;
+            const search = document.getElementById('adv-search');
+            const query = String((search && search.value) || '').trim().toLowerCase();
+            const placed = advPlacedKeys();
+            const groups = [];
+            let lastGroup = '';
+            let count = 0;
+
+            ADVANCED_KEYS.forEach(function (item) {
+                if (advFilter === 'useful' && !item.useful) return;
+                if (advFilter === 'owned' && !item.owned) return;
+                if (query) {
+                    const blob = [item.key, item.hint, item.group, item.values,
+                        item.owned || '', item.default || ''].join(' ').toLowerCase();
+                    if (!blob.includes(query)) return;
+                }
+
+                if (item.group !== lastGroup) {
+                    groups.push('<div class="adv-group">' + advEsc(item.group) + '</div>');
+                    lastGroup = item.group;
+                }
+
+                const future = advVersionNewer(item.min);
+                const inDefault = !!placed['default'][item.key];
+                const inOverride = !!placed['override'][item.key];
+                const where = inDefault ? 'default' : (inOverride ? 'override' : '');
+                const cls = [
+                    'adv-row',
+                    item.owned ? 'is-owned' : '',
+                    future ? 'is-future' : '',
+                    where ? 'is-in' : '',
+                ].filter(Boolean).join(' ');
+
+                const badges = [];
+                if (item.useful) badges.push('<span class="adv-badge useful">推荐</span>');
+                if (item.owned) badges.push('<span class="adv-badge owned">' + advEsc(item.owned) + '</span>');
+                if (item.pro) badges.push('<span class="adv-badge">Pro</span>');
+                if (future) badges.push('<span class="adv-badge future">' + advEsc(item.min) + '+</span>');
+                else if (item.min) badges.push('<span class="adv-badge">始于 ' + advEsc(item.min) + '</span>');
+                if (where) badges.push('<span class="adv-badge placed">' + (where === 'default' ? '已在默认' : '已在覆盖') + '</span>');
+
+                const values = item.values
+                    ? ' <span class="adv-vals">' + advEsc(item.values) + '</span>'
+                    : '';
+                const def = item.default
+                    ? ' <span class="adv-vals">· 默认 ' + advEsc(item.default) + '</span>'
+                    : '';
+
+                groups.push(
+                    '<div class="' + cls + '" data-adv-key="' + advEsc(item.key) + '" role="listitem">'
+                    + '<span class="adv-k">' + advEsc(item.key) + '</span>'
+                    + '<span class="adv-badges">' + badges.join('') + '</span>'
+                    + '<span class="adv-meta">' + advEsc(item.hint) + values + def + '</span>'
+                    + '<span class="adv-insert">'
+                    + '<button type="button" data-adv-into="default">插入默认</button>'
+                    + '<button type="button" data-adv-into="override">插入覆盖</button>'
+                    + '</span></div>'
+                );
+                count++;
+            });
+
+            host.innerHTML = count
+                ? groups.join('')
+                : '<div class="adv-empty">没有匹配的设置键。</div>';
+            host.scrollTop = scrollTop;
+        }
+
+        (function initAdvancedKeys() {
+            if (!ADVANCED_KEYS.length) return;
+            const search = document.getElementById('adv-search');
+            if (search) {
+                search.addEventListener('input', renderAdvList);
+                // 搜索框内按回车不应触发表单提交。
+                search.addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter') e.preventDefault();
+                });
+            }
+
+            const version = document.getElementById('id_version');
+            if (version) version.addEventListener('change', renderAdvList);
+
+            document.querySelectorAll('[data-adv-filter]').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    advFilter = btn.dataset.advFilter || 'all';
+                    document.querySelectorAll('[data-adv-filter]').forEach(function (other) {
+                        other.classList.toggle('is-on', other === btn);
+                    });
+                    renderAdvList();
+                });
+            });
+
+            const list = document.getElementById('adv-list');
+            if (list) {
+                list.addEventListener('click', function (e) {
+                    const btn = e.target.closest('[data-adv-into]');
+                    if (!btn) return;
+                    const row = btn.closest('[data-adv-key]');
+                    if (!row) return;
+                    const item = ADVANCED_KEYS.find(function (entry) {
+                        return entry.key === row.dataset.advKey;
+                    });
+                    if (item) advInsert(item, btn.dataset.advInto);
+                });
+            }
+
+            // 手工编辑或载入配置后，徽标保持同步。
+            ['id_defaultManual', 'id_overrideManual'].forEach(function (id) {
+                const ta = document.getElementById(id);
+                if (!ta) return;
+                ta.addEventListener('input', renderAdvList);
+                ta.addEventListener('focus', function () {
+                    advNote('正在编辑' + (id === 'id_overrideManual' ? '覆盖' : '默认')
+                        + '设置。点击上方键名即可插入到此处。');
+                });
+            });
+
+            renderAdvList();
+        })();
     </script>
 </body>
 </html>
