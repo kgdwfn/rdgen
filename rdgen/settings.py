@@ -46,7 +46,12 @@ LOGGING = {
             "formatter": "json" if LOG_FORMAT.lower() == "json" else "text",
         },
     },
-    "loggers": {"rdgenerator": {"handlers": ["console"], "level": "INFO", "propagate": False}},
+    "loggers": {
+        "rdgenerator": {"handlers": ["console"], "level": "INFO", "propagate": False},
+        # 未处理异常的完整堆栈送到容器日志，否则 DEBUG=False 时 500 只有
+        # 一句 "Server Error (500)"，docker compose logs 里什么都看不到。
+        "django.request": {"handlers": ["console"], "level": "ERROR", "propagate": False},
+    },
 }
 
 MEDIA_URL = '/media/'
