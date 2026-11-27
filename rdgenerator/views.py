@@ -671,6 +671,31 @@ def generate_custom_client(params, full_url):
             decodedCustom['override-settings']['custom-rendezvous-server'] = server
             decodedCustom['override-settings']['api-server'] = apiServer
 
+    # 有些键只从配置顶层(HARD_SETTINGS)读取，不会从 default/override 映射里读。
+    # 高级用户在两个手动文本框里填这些键时，路由到顶层而不是嵌套映射。
+    hard_custom_keys = {
+        'conn-type',
+        'password',
+        'salt',
+        'app-name',
+        'disable-installation',
+        'disable-settings',
+        'disable-tcp-listen',
+        'disable-ab',
+        'disable-account',
+    }
+
+    def apply_manual_settings(lines, target):
+        for line in lines.splitlines():
+            if '=' in line:
+                k, value = line.split('=', 1)
+                k = k.strip()
+                value = value.strip()
+                if k in hard_custom_keys:
+                    decodedCustom[k] = value
+                else:
+                    target[k] = value
+
     if defaultManual:
         apply_manual_settings(defaultManual, decodedCustom['default-settings'])
 

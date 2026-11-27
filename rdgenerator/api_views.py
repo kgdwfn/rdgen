@@ -3,7 +3,7 @@ import re
 from django.http import JsonResponse
 from django.conf import settings as _settings
 from .forms import HEX_COLOR_RE
-from .views import generate_custom_client, _get_run_status, _platform_label, _new_batch_id, _save_batch
+from .views import generate_custom_client, get_full_url, _get_run_status, _platform_label, _new_batch_id, _save_batch
 
 
 # Field validation constraints (mirrored from GenerateForm)
