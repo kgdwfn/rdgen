@@ -1,12 +1,20 @@
+import logging
 import re
 
 from django import forms
 from PIL import Image
 
+logger = logging.getLogger(__name__)
+
 # App/company names are interpolated into single/double-quoted bash sed
 # scripts in every generator workflow: & \ | corrupt the substitution
 # silently, ' " $ ` break shell quoting, CR/LF break sed addressing.
 UNSAFE_NAME_CHARS = re.compile(r'[&\\|\'"$`\r\n]')
+
+# Theme colours are interpolated into 0xAARRGGBB Dart literals by the
+# workflow patch. Accept the same forms a user types in a colour picker, but
+# only ever forward a canonical #RRGGBB (blank means "stock RustDesk colour").
+HEX_COLOR_RE = re.compile(r'^#?[0-9A-Fa-f]{6}$')
 
 class GenerateForm(forms.Form):
     def __init__(self, *args, **kwargs):
@@ -57,7 +65,7 @@ class GenerateForm(forms.Form):
         widget=forms.CheckboxSelectMultiple,
         initial=['windows']
     )
-    version = forms.ChoiceField(choices=[('master','nightly'),('1.5.1','1.5.1'),('1.5.0','1.5.0'),('1.4.9','1.4.9'),('1.4.8','1.4.8'),('1.4.7','1.4.7'),('1.4.6','1.4.6'),('1.4.5','1.4.5'),('1.4.4','1.4.4'),('1.4.3','1.4.3'),('1.4.2','1.4.2'),('1.4.1','1.4.1'),('1.4.0','1.4.0')], initial='1.5.1')
+    version = forms.ChoiceField(choices=[('master','nightly'),('1.5.3','1.5.3'),('1.5.1','1.5.1'),('1.5.0','1.5.0'),('1.4.9','1.4.9'),('1.4.8','1.4.8'),('1.4.7','1.4.7'),('1.4.6','1.4.6'),('1.4.5','1.4.5'),('1.4.4','1.4.4'),('1.4.3','1.4.3'),('1.4.2','1.4.2'),('1.4.1','1.4.1'),('1.4.0','1.4.0')], initial='1.5.3')
     help_text="'master' is the development version (nightly build) with the latest features but may be less stable"
     delayFix = forms.BooleanField(initial=True, required=False)
 
@@ -78,7 +86,7 @@ class GenerateForm(forms.Form):
         ('settingsY', '否，启用设置'),
         ('settingsN', '是, 禁用设置')
     ], initial='settingsY')
-    androidappid = forms.CharField(label="Custom Android App ID (replaces 'com.carriez.flutter_hbb')", required=False)
+    androidappid = forms.CharField(label="Custom Android App ID (installed identity; leave blank to use com.carriez.flutter_hbb)", required=False)
 
     #Custom Server
     serverIP = forms.CharField(label="Host", required=False)
@@ -109,6 +117,32 @@ class GenerateForm(forms.Form):
         ('system', 'Follow System')
     ], initial='system')
     themeDorO = forms.ChoiceField(choices=[('default', '默认'),('override', '覆盖')], initial='default')
+    # Blank = keep the stock RustDesk colour. The workflows apply these to the
+    # Flutter theme via .github/patches/themeColors.py.
+    themeColor = forms.CharField(
+        label="Accent color", required=False,
+        widget=forms.TextInput(attrs={
+            'placeholder': '#0071FF (stock)', 'class': 'hex-color',
+            'spellcheck': 'false', 'autocomplete': 'off',
+        }))
+    themeSurfaceLight = forms.CharField(
+        label="Light surface color", required=False,
+        widget=forms.TextInput(attrs={
+            'placeholder': '#EFEFF2 (stock)', 'class': 'hex-color',
+            'spellcheck': 'false', 'autocomplete': 'off',
+        }))
+    themeSurfaceDark = forms.CharField(
+        label="Dark surface color", required=False,
+        widget=forms.TextInput(attrs={
+            'placeholder': '#18191E (stock)', 'class': 'hex-color',
+            'spellcheck': 'false', 'autocomplete': 'off',
+        }))
+    themeMeColor = forms.CharField(
+        label="ID / \u201cme\u201d color", required=False,
+        widget=forms.TextInput(attrs={
+            'placeholder': '#21790B (stock)', 'class': 'hex-color',
+            'spellcheck': 'false', 'autocomplete': 'off',
+        }))
 
     #Security
     passApproveMode = forms.ChoiceField(choices=[('password','只允许密码访问'),('click','只允许点击访问'),('password-click','允许密码或点击访问')],initial='password-click')
@@ -166,7 +200,7 @@ class GenerateForm(forms.Form):
     # ========== 新增结束 ==========
 
     def clean_iconfile(self):
-        print("checking icon")
+        logger.info("checking icon")
         image = self.cleaned_data['iconfile']
         if image:
             try:
@@ -216,3 +250,27 @@ class GenerateForm(forms.Form):
 
     def clean_compname(self):
         return self._reject_unsafe_name_chars('compname')
+
+    def _clean_hex_color(self, field):
+        """Accept #RRGGBB or RRGGBB; return canonical #RRGGBB or ''."""
+        value = (self.cleaned_data.get(field) or '').strip()
+        if not value:
+            return ''
+        if not HEX_COLOR_RE.match(value):
+            raise forms.ValidationError(
+                "Enter a 6-digit hex color such as #0071FF, or leave it blank "
+                "for the stock RustDesk color."
+            )
+        return '#' + value.lstrip('#').upper()
+
+    def clean_themeColor(self):
+        return self._clean_hex_color('themeColor')
+
+    def clean_themeSurfaceLight(self):
+        return self._clean_hex_color('themeSurfaceLight')
+
+    def clean_themeSurfaceDark(self):
+        return self._clean_hex_color('themeSurfaceDark')
+
+    def clean_themeMeColor(self):
+        return self._clean_hex_color('themeMeColor')

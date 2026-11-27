@@ -1,5 +1,6 @@
 import io
 import datetime
+import logging
 from pathlib import Path
 from django.http import HttpResponse, JsonResponse, HttpResponseForbidden
 from django.shortcuts import render, get_object_or_404, redirect
@@ -14,7 +15,8 @@ import uuid
 import pyzipper
 from django.conf import settings as _settings
 from django.db.models import Q
-from .forms import GenerateForm
+from .forms import GenerateForm, HEX_COLOR_RE
+from .advanced_keys import ADVANCED_KEYS
 from .models import GithubRun
 from PIL import Image
 from urllib.parse import quote
@@ -22,6 +24,7 @@ from urllib.parse import quote
 # 固定命名空间：用于按「连接类型 + 平台」派生稳定 uuid。
 # 同类型同平台跨版本重建 → 相同 uuid → 旧客户端更新地址不变，能拿到新版。
 RDGEN_UUID_NS = uuid.UUID('9f3b2c1a-7d4e-4c8a-9b6f-1e2d3c4b5a6f')
+logger = logging.getLogger(__name__)
 
 # get_png, download and save_custom_client build file paths from request values;
 # only accept a UUID and a plain file name so "../" or absolute paths cannot escape png/ and exe/.
@@ -355,6 +358,28 @@ def _config_problems():
         elif val == placeholder:
             problems.append((key, f"{key} 仍是 docker-compose.yml 里的占位符 {placeholder}"))
     return problems
+def _norm_hex_color(value):
+    """Return canonical #RRGGBB, or '' for blank/invalid (stock color).
+
+    The workflows receive this as a step env var and interpolate it into Dart
+    0xAARRGGBB literals, so nothing but validated hex may reach them.
+    """
+    value = value if isinstance(value, str) else ''
+    value = value.strip()
+    if not value or not HEX_COLOR_RE.match(value):
+        return ''
+    return '#' + value.lstrip('#').upper()
+
+
+def get_full_url(request):
+    """URL the GitHub workflow uses to reach this server. GENURL wins over the
+    request host, which can be an internal address behind a reverse proxy."""
+    if _settings.GENURL:
+        genurl = _settings.GENURL.rstrip('/')
+        if '://' in genurl:
+            return genurl
+        return f"{_settings.PROTOCOL}://{genurl}"
+    return f"{_settings.PROTOCOL}://{request.get_host()}"
 
 
 def generate_custom_client(params, full_url):
@@ -372,7 +397,11 @@ def generate_custom_client(params, full_url):
     user_secret = params.get('sh_secret_field', '')
     selfhosted = (_settings.SH_SECRET == user_secret)
     platform = params.get('platform', 'windows')
-    version = params.get('version', '1.5.1')
+    version = params.get('version', '1.5.3')
+    app_version = params.get('app_version', '')
+    # app_version overrides the version string embedded in the built client
+    # without changing the git tag that version selects. If left empty, the
+    # RustDesk build's own version (from the checked-out tag) is used.
     delayFix = params.get('delayFix', True)
     xOffline = params.get('xOffline', False)
     hidecm = params.get('hidecm', False)
@@ -415,11 +444,15 @@ def generate_custom_client(params, full_url):
     permPass = params.get('permanentPassword', '')
     theme = params.get('theme', 'system')
     themeDorO = params.get('themeDorO', 'default')
+    # Optional Flutter theme colours; blank means "leave the stock colour".
+    themeColor = _norm_hex_color(params.get('themeColor', ''))
+    themeSurfaceLight = _norm_hex_color(params.get('themeSurfaceLight', ''))
+    themeSurfaceDark = _norm_hex_color(params.get('themeSurfaceDark', ''))
+    themeMeColor = _norm_hex_color(params.get('themeMeColor', ''))
     passApproveMode = params.get('passApproveMode', 'password-click')
     denyLan = params.get('denyLan', False)
     enableDirectIP = params.get('enableDirectIP', False)
     autoClose = params.get('autoClose', False)
-    permissionsDorO = params.get('permissionsDorO', 'default')
     permissionsType = params.get('permissionsType', 'custom')
     enableKeyboard = params.get('enableKeyboard', True)
     enableClipboard = params.get('enableClipboard', True)
@@ -498,7 +531,7 @@ def generate_custom_client(params, full_url):
             iconfile = params.get('iconbase64')
         iconlink_url, iconlink_uuid, iconlink_file = save_png(iconfile,myuuid,full_url,"icon.png")
     except:
-        print("failed to get icon, using default")
+        logger.info("failed to get icon, using default")
         iconlink_url = "false"
         iconlink_uuid = "false"
         iconlink_file = "false"
@@ -508,7 +541,7 @@ def generate_custom_client(params, full_url):
             logofile = params.get('logobase64')
         logolink_url, logolink_uuid, logolink_file = save_png(logofile,myuuid,full_url,"logo.png")
     except:
-        print("failed to get logo")
+        logger.info("failed to get logo")
         logolink_url = "false"
         logolink_uuid = "false"
         logolink_file = "false"
@@ -518,14 +551,14 @@ def generate_custom_client(params, full_url):
             privacyfile = params.get('privacybase64')
         privacylink_url, privacylink_uuid, privacylink_file = save_png(privacyfile,myuuid,full_url,"privacy.png")
     except:
-        print("failed to get logo")
+        logger.info("failed to get privacy screen")
         privacylink_url = "false"
         privacylink_uuid = "false"
         privacylink_file = "false"
 
     ###create the custom.txt json here and send in as inputs below
     decodedCustom = {}
-    if direction != "Both":
+    if direction != "both":
         decodedCustom['conn-type'] = direction
     if installation == "installationN":
         decodedCustom['disable-installation'] = 'Y'
@@ -561,6 +594,7 @@ def generate_custom_client(params, full_url):
 
     if permPass != "":
         decodedCustom['password'] = permPass
+
     if theme != "system":
         if themeDorO == "default":
             if platform == "windows-x86":
@@ -572,9 +606,6 @@ def generate_custom_client(params, full_url):
                 decodedCustom['override-settings']['allow-darktheme'] = 'Y' if theme == "dark" else 'N'
             else:
                 decodedCustom['override-settings']['theme'] = theme
-    decodedCustom['enable-lan-discovery'] = 'N' if denyLan else 'Y'
-    #decodedCustom['direct-server'] = 'Y' if enableDirectIP else 'N'
-    decodedCustom['allow-auto-disconnect'] = 'Y' if autoClose else 'N'
 
     if permissionsDorO == "default":
         decodedCustom['default-settings']['access-mode'] = permissionsType
@@ -641,16 +672,10 @@ def generate_custom_client(params, full_url):
             decodedCustom['override-settings']['api-server'] = apiServer
 
     if defaultManual:
-        for line in defaultManual.splitlines():
-            if '=' in line:
-                k, value = line.split('=', 1)
-                decodedCustom['default-settings'][k.strip()] = value.strip()
+        apply_manual_settings(defaultManual, decodedCustom['default-settings'])
 
     if overrideManual:
-        for line in overrideManual.splitlines():
-            if '=' in line:
-                k, value = line.split('=', 1)
-                decodedCustom['override-settings'][k.strip()] = value.strip()
+        apply_manual_settings(overrideManual, decodedCustom['override-settings'])
     
     decodedCustomJson = json.dumps(decodedCustom)
 
@@ -713,6 +738,10 @@ def generate_custom_client(params, full_url):
         # 不进入 app-name（安装路径/进程名/注册表等必须 ASCII）。
         "displayname":displayname,
         "genurl":_settings.GENURL,
+        "themeColor": themeColor,
+        "themeSurfaceLight": themeSurfaceLight,
+        "themeSurfaceDark": themeSurfaceDark,
+        "themeMeColor": themeMeColor,
         "urlLink":urlLink,
         "downloadLink":effective_download_link,
         "delayFix": 'true' if delayFix else 'false',
@@ -759,6 +788,7 @@ def generate_custom_client(params, full_url):
         "ref":_settings.GHBRANCH,
         "inputs":{
             "version":version,
+            "app_version":app_version,
             "zip_url":zip_url
         },
         "return_run_details": True
@@ -777,7 +807,7 @@ def generate_custom_client(params, full_url):
         response = requests.post(url, json=data, headers=headers)
         if response.status_code == 204 or response.status_code == 200:
             github_data = response.json()
-            print(github_data)
+            logger.info("%s", github_data)
             new_github_run.github_run_id = github_data.get('workflow_run_id')
             new_github_run.status = "in_progress"
             new_github_run.save()
@@ -849,7 +879,7 @@ def _get_run_status(uuid_val):
                     gh_run.status = gh_data['conclusion']
                     gh_run.save()
         except Exception as e:
-            print(f"Error checking GitHub: {e}")
+            logger.warning(f"Error checking GitHub: {e}")
 
     return {
         "found": True,
@@ -874,7 +904,7 @@ def generator_view(request):
                              "请在 docker-compose.yml 的 environment 中填入真实值后"
                              "重建容器（docker compose up -d --build）。"
                 }, status=500)
-            full_url = f"{_settings.PROTOCOL}://{request.get_host()}" if _settings.GENURL else f"{_settings.PROTOCOL}://{request.get_host()}"
+            full_url = get_full_url(request)
             # 平台多选：每个平台独立构建、各自 uuid 与下载链接
             platforms = params.get('platform') or ['windows']
             builds = []
@@ -931,7 +961,45 @@ def generator_view(request):
     else:
         form = GenerateForm()
     #return render(request, 'maintenance.html')
-    return render(request, 'generator.html', {'form': form})
+    return render(request, 'generator.html', {
+        'form': form,
+        'advanced_keys': ADVANCED_KEYS,
+    })
+
+
+def _expected_files_for_platform(filename, platform):
+    """Return the list of expected output filenames for a given platform."""
+    if platform == 'windows':
+        return [f"{filename}.exe", f"{filename}.msi"]
+    elif platform == 'windows-x86':
+        return [f"{filename}.exe"]
+    elif platform == 'linux':
+        return [
+            f"{filename}-x86_64.deb",
+            f"{filename}-unattended-wayland-x86_64.deb",
+            f"{filename}-x86_64.rpm",
+            f"{filename}-suse-x86_64.rpm",
+            f"{filename}-x86_64.pkg.tar.zst",
+            f"{filename}-aarch64.deb",
+            f"{filename}-aarch64.rpm",
+            f"{filename}-suse-aarch64.rpm",
+            f"{filename}-x86_64.AppImage",
+            f"{filename}-aarch64.AppImage",
+            f"{filename}-x86_64.flatpak",
+            f"{filename}-aarch64.flatpak",
+        ]
+    elif platform == 'android':
+        return [
+            f"{filename}-aarch64.apk",
+            f"{filename}-x86_64.apk",
+            f"{filename}-armv7.apk",
+        ]
+    elif platform == 'macos':
+        return [
+            f"{filename}-x86_64.dmg",
+            f"{filename}-aarch64.dmg",
+        ]
+    return []
 
 
 def check_for_file(request):
@@ -1257,7 +1325,7 @@ def startgh(request):
         'X-GitHub-Api-Version': '2026-03-10'
     }
     response = requests.post(url, json=data, headers=headers)
-    print(response)
+    logger.info("%s", response)
     return HttpResponse(status=204)
 
 def save_png(file, uuid, domain, name):
@@ -1270,10 +1338,10 @@ def save_png(file, uuid, domain, name):
             decoded_img = base64.b64decode(encoded)
             file = ContentFile(decoded_img, name=name) # Create a file-like object
         except ValueError:
-            print("Invalid base64 data")
+            logger.info("Invalid base64 data")
             return None  # Or handle the error as you see fit
         except Exception as e:  # Catch general exceptions during decoding
-            print(f"Error decoding base64: {e}")
+            logger.warning(f"Error decoding base64: {e}")
             return None
         
     with open(file_save_path, "wb+") as f:
@@ -1316,9 +1384,9 @@ def cleanup_secrets(request):
             file_path = os.path.join(temp_dir, filename)
             try:
                 os.remove(file_path)
-                print(f"Successfully deleted {file_path}")
+                logger.info(f"Successfully deleted {file_path}")
             except OSError as e:
-                print(f"Error deleting file: {e}")
+                logger.warning(f"Error deleting file: {e}")
 
     return HttpResponse("Cleanup successful", status=200)
 

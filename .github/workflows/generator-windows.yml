@@ -92,9 +92,9 @@ jobs:
           # - { target: aarch64-pc-windows-msvc, os: windows-2022, arch: aarch64 }
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: encrypted-secrets-zip
 
@@ -106,7 +106,7 @@ jobs:
       - name: Finalize and Cleanup zip/json
         if: always() # Run even if previous steps fail
         continue-on-error: true
-        uses: fjogeleit/http-request-action@v1
+        uses: fjogeleit/http-request-action@v2
         with:
           url: "${{ secrets.GENURL }}/cleanzip"
           method: 'POST'
@@ -114,7 +114,7 @@ jobs:
           data: '{"uuid": "${{ env.uuid }}"}'
 
       - name: Export GitHub Actions cache environment variables
-        uses: actions/github-script@v6
+        uses: actions/github-script@v9
         with:
           script: |
             core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
@@ -132,7 +132,7 @@ jobs:
 
       - name: Checkout source code
         if: ${{ env.VERSION != 'master' }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: rustdesk/rustdesk
           ref: refs/tags/${{ env.VERSION }}
@@ -140,7 +140,7 @@ jobs:
 
       - name: Checkout source code
         if: ${{ env.VERSION == 'master' }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: rustdesk/rustdesk
           submodules: recursive
@@ -289,6 +289,27 @@ jobs:
           sed -i -e 's|reg delete HKEY_CLASSES_ROOT\\\\.{ext} /f|reg delete \\\"HKEY_CLASSES_ROOT\\\\.{ext}\\\" /f|' ./src/platform/windows.rs
           sed -i -e 's|reg delete HKEY_CLASSES_ROOT\\\\{ext} /f|reg delete \\\"HKEY_CLASSES_ROOT\\\\{ext}\\\" /f|' ./src/platform/windows.rs
           
+      - name: fix registry if appname has a space
+        if: contains(env.appname, ' ')
+        continue-on-error: true
+        shell: bash
+        run: |
+          #./src/platform/windows.rs
+          sed -i -e 's|reg add {}|reg add \\\"{}\\\"|' ./src/platform/windows.rs
+          sed -i -e 's|reg add HKEY_CLASSES_ROOT\\\\.{ext} /f|reg add \\\"HKEY_CLASSES_ROOT\\\\.{ext}\\\" /f|' ./src/platform/windows.rs
+          sed -i -e 's|reg add HKEY_CLASSES_ROOT\\\\.{ext}\\\\DefaultIcon /f|reg add \\\"HKEY_CLASSES_ROOT\\\\.{ext}\\\\DefaultIcon\\\" /f|' ./src/platform/windows.rs
+          sed -i -e 's|reg add HKEY_CLASSES_ROOT\\\\.{ext}\\\\shell /f|reg add \\\"HKEY_CLASSES_ROOT\\\\.{ext}\\\\shell\\\" /f|' ./src/platform/windows.rs
+          sed -i -e 's|reg add HKEY_CLASSES_ROOT\\\\.{ext}\\\\shell\\\\open /f|reg add \\\"HKEY_CLASSES_ROOT\\\\.{ext}\\\\shell\\\\open\\\" /f|' ./src/platform/windows.rs
+          sed -i -e 's|reg add HKEY_CLASSES_ROOT\\\\.{ext}\\\\shell\\\\open\\\\command|reg add \\\"HKEY_CLASSES_ROOT\\\\.{ext}\\\\shell\\\\open\\\\command\\\"|' ./src/platform/windows.rs
+          sed -i -e 's|reg add HKEY_CLASSES_ROOT\\\\{ext} /f|reg add \\\"HKEY_CLASSES_ROOT\\\\{ext}\\\" /f|' ./src/platform/windows.rs
+          sed -i -e 's|reg add HKEY_CLASSES_ROOT\\\\{ext}\\\\shell /f|reg add \\\"HKEY_CLASSES_ROOT\\\\{ext}\\\\shell\\\" /f|' ./src/platform/windows.rs
+          sed -i -e 's|reg add HKEY_CLASSES_ROOT\\\\{ext}\\\\shell\\\\open /f|reg add \\\"HKEY_CLASSES_ROOT\\\\{ext}\\\\shell\\\\open\\\" /f|' ./src/platform/windows.rs
+          sed -i -e 's|reg add HKEY_CLASSES_ROOT\\\\{ext}\\\\shell\\\\open\\\\command /f|reg add \\\"HKEY_CLASSES_ROOT\\\\{ext}\\\\shell\\\\open\\\\command\\\" /f|' ./src/platform/windows.rs
+          sed -i -e 's|{subkey}|\\\"{subkey}\\\"|' ./src/platform/windows.rs
+          sed -i -e 's|reg delete HKEY_CLASSES_ROOT\\\\.{ext} /f|reg delete \\\"HKEY_CLASSES_ROOT\\\\.{ext}\\\" /f|' ./src/platform/windows.rs
+          sed -i -e 's|reg delete HKEY_CLASSES_ROOT\\\\{ext} /f|reg delete \\\"HKEY_CLASSES_ROOT\\\\{ext}\\\" /f|' ./src/platform/windows.rs
+          
+
       - name: change company name
         if: env.compname != 'Purslane Ltd'
         continue-on-error: true
@@ -445,7 +466,7 @@ jobs:
           fi
 
       - name: allow custom.txt
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@v4
         with:
           timeout_minutes: 5
           max_attempts: 3
@@ -454,9 +475,18 @@ jobs:
           command: |
             Invoke-WebRequest -Uri https://raw.githubusercontent.com/bryangerlach/rdgen/refs/heads/master/.github/patches/allowCustom.py -OutFile allowCustom.py
             python allowCustom.py
+            Invoke-WebRequest -Uri https://raw.githubusercontent.com/bryangerlach/rdgen/refs/heads/master/.github/patches/forcePresetPassword.py -OutFile forcePresetPassword.py
+            python forcePresetPassword.py
             # Remove Setup Server Tip
             Invoke-WebRequest -Uri https://raw.githubusercontent.com/bryangerlach/rdgen/refs/heads/master/.github/patches/removeSetupServerTip.diff -OutFile removeSetupServerTip.diff
             git apply removeSetupServerTip.diff
+
+      - name: apply theme colors
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri https://raw.githubusercontent.com/bryangerlach/rdgen/refs/heads/master/.github/patches/themeColors.py -OutFile themeColors.py
+          python themeColors.py
 
       - name: Patch remote printer port to spool file
         shell: python
@@ -508,7 +538,7 @@ jobs:
                       print("Warning: RD_PRINTER_PORT not matched in RemotePrinter.cpp")
 
       - name: Install LLVM and Clang
-        uses: KyleMayes/install-llvm-action@v1
+        uses: KyleMayes/install-llvm-action@v2
         with:
           version: ${{ env.LLVM_VERSION }}
 
@@ -547,7 +577,15 @@ jobs:
         with:
           prefix-key: ${{ matrix.job.os }}
 
-      - name: Setup vcpkg with Github Actions binary cache
+      - name: Restore vcpkg installed cache
+        uses: actions/cache@v6
+        with:
+          path: C:\vcpkg\installed
+          key: vcpkg-windows-${{ env.VCPKG_COMMIT_ID }}-${{ matrix.job.vcpkg-triplet }}
+          restore-keys: |
+            vcpkg-windows-${{ env.VCPKG_COMMIT_ID }}-
+
+      - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
         with:
           vcpkgDirectory: C:\vcpkg
@@ -573,10 +611,17 @@ jobs:
           fi
           head -n 100 "${VCPKG_ROOT}/buildtrees/ffmpeg/build-${{ matrix.job.vcpkg-triplet }}-rel-out.log" || true
         shell: bash
+
+      - name: Save vcpkg installed cache
+        uses: actions/cache/save@v6
+        continue-on-error: true
+        with:
+          path: C:\vcpkg\installed
+          key: vcpkg-windows-${{ env.VCPKG_COMMIT_ID }}-${{ matrix.job.vcpkg-triplet }}
           
       - name: magick stuff
         if: ${{ env.iconlink_url != 'false' }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@v4
         with:
           timeout_minutes: 5
           max_attempts: 3
@@ -603,40 +648,32 @@ jobs:
             magick ./res/icon.png -resize 256x256 ./res/128x128@2x.png
 
 
-      - name: ui.rs icon
-        if: ${{ env.iconlink_url != 'false' }}
-        continue-on-error: true
-        timeout-minutes: 5
-        shell: bash
-        run: |
-          cp ./src/ui.rs ./src/ui.rs.bak
-          b64=$(base64 -w0 < ./res/icon.png)
-          perl -0777 -pe "s|iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAYAAADDPmHL[A-Za-z0-9+/=]+|$b64|g" -i.bak ./src/ui.rs
-          b64=""
-
       - name: fix connection delay
         continue-on-error: true
         if: ${{ env.delayFix == 'true' }}
         shell: bash
         run: |
-          # Precise fix: only extend the direct-connection condition with the
-          # key check, instead of globally replacing !key.is_empty() with
-          # false (which would also disable TCP encryption and UDP logic).
-          sed -i -e 's#if is_local || peer_nat_type == NatType::SYMMETRIC {#if is_local || peer_nat_type == NatType::SYMMETRIC || !key.is_empty() {#' ./src/client.rs
+          # Skip the optional secure_tcp handshake to the rendezvous server.
+          # The open-source rustdesk-server never sends KeyExchange, so when an
+          # access_token is set (third-party API login) the client waits for
+          # READ_TIMEOUT and fails with:
+          # "Failed to secure tcp: deadline has elapsed: Please try later(0)".
+          # Matches DVForge's delay fix. Safe on 1.4.x-1.5.x/master: the only
+          # !key.is_empty() occurrences in client.rs are the two secure_tcp gates.
+          sed -i -e 's|!key.is_empty()|false|' ./src/client.rs
           grep -n "key.is_empty()" ./src/client.rs || true
 
       - name: use X for offline display instead of orange circle
         if: env.xOffline == 'true'
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@v4
         with:
           timeout_minutes: 5
           max_attempts: 3
           retry_wait_seconds: 15
           shell: pwsh
-          continue_on_error: true
           command: |
-            Invoke-WebRequest -Uri https://raw.githubusercontent.com/bryangerlach/rdgen/refs/heads/master/.github/patches/xoffline.diff -OutFile xoffline.diff
-            git apply xoffline.diff
+            Invoke-WebRequest -Uri https://raw.githubusercontent.com/bryangerlach/rdgen/refs/heads/master/.github/patches/xoffline.py -OutFile xoffline.py
+            python xoffline.py
 
       - name: removeNewVersionNotif
         continue-on-error: true
@@ -644,7 +681,7 @@ jobs:
         shell: bash
         run: | 
           sed -i -e 's|updateUrl.isNotEmpty|false|' ./flutter/lib/desktop/pages/desktop_home_page.dart
-          sed -i '/let (request, url) =/,/Ok(())/{/Ok(())/!d}' ./src/common.rs
+          #sed -i '/let (request, url) =/,/Ok(())/{/Ok(())/!d}' ./src/common.rs
 
       # - name: run as admin
       #   continue-on-error: true
@@ -670,7 +707,7 @@ jobs:
           cd ..
 
       - name: Checkout printer-adapter crate
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: bryangerlach/rdgen
           ref: master
@@ -750,7 +787,7 @@ jobs:
 
       - name: logo stuff
         if: ${{ env.logolink_url != 'false' }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@v4
         with:
           timeout_minutes: 5
           max_attempts: 3
@@ -852,15 +889,25 @@ jobs:
           mv ./target/release/rustdesk-portable-packer.exe "./SignOutput/rustdesk.exe"
 
       - name: Add MSBuild to PATH
-        uses: microsoft/setup-msbuild@v2
+        uses: microsoft/setup-msbuild@v3
 
       - name: Build msi
         continue-on-error: true
         if: env.UPLOAD_ARTIFACT == 'true'
+        env:
+          APP_VERSION: ${{ inputs.app_version }}
         run: |
           # appname 正常应为纯 ASCII（views.py 有 ASCII 闸门，界面显示名称只进 custom_.txt）。
           # 这里再兜一层：任何非 ASCII 漏进 appname 都会让 MSI 的 Product 与默认安装路径
           # （C:\Program Files\<名>）含中文，安装器会崩溃，故强制回落 rustdesk。
+          # MSI ProductVersion must be numeric, so strip build metadata such as
+          # "+078" here. The client/updater keeps the full version; the MSI uses
+          # the numeric base and preprocess.py adds its own revision (app_version
+          # 为空时 $msiVersion 为空串,不加 --version,行为与旧版完全一致)。
+          $msiVersion = ''
+          if ($env:APP_VERSION -match '^(\d+)\.(\d+)\.(\d+)') {
+            $msiVersion = "$($Matches[1]).$($Matches[2]).$($Matches[3])"
+          }
           $appRaw = "${{ env.appname }}"
           if (-not $appRaw -or ($appRaw -cmatch '[^\x00-\x7F]')) {
             Write-Host "appname '$appRaw' is empty or non-ASCII, falling back to 'rustdesk' for MSI"
@@ -877,7 +924,11 @@ jobs:
           # change company name 步替换过的默认值（那是 compname，可能是中文）。
           # Package.wxs 的 <Package Manufacturer=...> 直接进 MSI 安装器标题栏与"发行商"信息，
           # 非 ASCII 会让安装路径/标题含中文。
-          python preprocess.py --app-name "$myappname" --manufacturer "$myappname" --arp -d ../../rustdesk
+          if ($msiVersion) {
+            python preprocess.py --app-name "$myappname" --manufacturer "$myappname" --arp -d ../../rustdesk --version "$msiVersion"
+          } else {
+            python preprocess.py --app-name "$myappname" --manufacturer "$myappname" --arp -d ../../rustdesk
+          }
           # Chinese (and other non-ASCII) app names need a UTF-8 codepage in the WiX
           # sources. MUST run AFTER preprocess.py, otherwise it regenerates the .wxs/.wxl
           # with Codepage="1252" and the 1.4.x MSI build fails (WIX0311). The regex also
@@ -960,7 +1011,7 @@ jobs:
 
       - name: send file to rdgen server
         if: ${{ env.rdgen == 'true' }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@v4
         with:
           timeout_minutes: 15
           max_attempts: 3
@@ -986,7 +1037,7 @@ jobs:
 
       - name: send file to api server
         if: ${{ env.rdgen == 'false' }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@v4
         with:
           timeout_minutes: 15
           max_attempts: 3
@@ -1003,6 +1054,6 @@ jobs:
     if: always()
     steps:
       - name: Delete secrets artifact
-        uses: geekyeggo/delete-artifact@v5
+        uses: geekyeggo/delete-artifact@v6
         with:
           name: encrypted-secrets-zip
