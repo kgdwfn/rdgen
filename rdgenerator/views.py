@@ -453,6 +453,7 @@ def generate_custom_client(params, full_url):
     denyLan = params.get('denyLan', False)
     enableDirectIP = params.get('enableDirectIP', False)
     autoClose = params.get('autoClose', False)
+    permissionsDorO = params.get('permissionsDorO', 'default')
     permissionsType = params.get('permissionsType', 'custom')
     enableKeyboard = params.get('enableKeyboard', True)
     enableClipboard = params.get('enableClipboard', True)
