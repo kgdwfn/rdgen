@@ -305,6 +305,7 @@ WantedBy=multi-user.target
 | 报「缺少 PyNaCl」 | 镜像没重建或依赖没装 | `docker compose up -d --build` |
 | 容器读不到 `android_signing` 里的文件 | 卷没挂上 / 文件权限太严 | `docker compose config` 核对 volumes、`docker inspect ... Mounts` 确认；文件至少 644、目录 755 |
 | 状态一直"运行中"、没有日志下载 | 多半派到了自托管 workflow 且无 runner；或服务器↔GitHub 网络不通 | 核对 run 的 workflow 名；`docker compose logs` 看 `Failed to resolve api.github.com` |
+| `/api/generate` 返回「所有平台构建均失败」 | 不再是笼统一句：响应里的 `message`、`failures`（逐平台原因/详情）、`config_problems` 会点名是签名同步失败、GitHub 422、还是凭据仍是占位符 | 按这三个字段处理；派发函数若抛异常，`docker compose logs rdgen` 里有完整堆栈，响应给类型+摘要且仍是 JSON 500 |
 
 ---
 
@@ -313,4 +314,5 @@ WantedBy=multi-user.target
 1. 本仓库是**公开仓库**，安卓签名私钥、`GHBEARER`、任何明文密码都绝不能提交进 git。`.gitignore` 已排除 `android_signing/*`（另保留 `.env` 忽略项只是防止本地私有文件误提交），`.dockerignore` 也排除了密钥目录，防止 `COPY . .` 把私钥打进镜像。
 2. 私钥一旦泄露或提交，必须作废重建证书 —— 代价是所有已安装设备都要卸载重装。
 3. PAT 按需最小授权；`Secrets: Read and write` 是本 fork 自动同步所需，若不想常驻可只在首次同步时临时提权。
+4. **本站点没有任何登录 / 权限校验**：`urls.py` 只注册了表单、构建回调和 JSON API，`/admin/`、`/login/`、`/password_reset/` 全是 404，视图里也没有 `login_required`；数据库里 `auth_user` 表为空。任何人只要能访问到服务端口就能提交构建、下载产物、调用 `/api/generate`。请把访问控制放在外层（反向代理 Basic Auth / IP 白名单 / 只开内网），不要把服务直接暴露到公网。`SECRET_KEY` 目前只作为 Django 的签名根密钥存在，因为没有启用密码重置、签名 cookie 等功能，它不参与这条构建链路；但一旦以后启用 `/admin` 或签名登录，公开的占位串就必须换成随机值。
 4. 生产环境务必替换 `SECRET_KEY`，关闭 `DEBUG`，并在 `GENURL` 上启用 HTTPS。

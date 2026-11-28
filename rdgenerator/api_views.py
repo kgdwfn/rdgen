@@ -1,9 +1,15 @@
 import json
+import logging
 import re
 from django.http import JsonResponse
 from django.conf import settings as _settings
 from .forms import HEX_COLOR_RE
-from .views import generate_custom_client, get_full_url, _get_run_status, _platform_label, _new_batch_id, _save_batch
+from .views import (
+    generate_custom_client, get_full_url, _get_run_status, _platform_label,
+    _new_batch_id, _save_batch, _config_problems,
+)
+
+logger = logging.getLogger(__name__)
 
 
 # Field validation constraints (mirrored from GenerateForm)
@@ -35,6 +41,19 @@ OPTIONAL_STR_FIELDS = [
     'app_version',
     'themeColor', 'themeSurfaceLight', 'themeSurfaceDark', 'themeMeColor',
 ]
+
+
+def _failure_reason(failure):
+    """把单个平台的失败记录拼成一句可读说明（响应与日志共用）。
+
+    generate_custom_client() 会把 GitHub 的 HTTP 状态码/响应体、签名同步失败原因
+    放在 error / detail 里；这里统一拼接并限长，避免把超长响应体整段吐给调用方。
+    """
+    reason = str(failure.get('error') or '未知错误').strip()
+    detail = str(failure.get('detail') or '').strip()
+    if detail:
+        reason += "：" + detail
+    return reason[:500]
 
 
 def validate_generate_params(data):
@@ -152,6 +171,9 @@ def api_generate(request):
     the custom client generation process via GitHub Actions.
 
     Returns JSON with success status, uuid, filename, platform, and log_url.
+    On failure returns 500 with error / message / failures (per-platform reason)
+    / config_problems; a partially successful multi-platform request carries
+    partial=true and the same failures list.
     """
     if request.method != 'POST':
         return JsonResponse({"success": False, "error": "Method not allowed. Use POST."}, status=405)
@@ -174,17 +196,58 @@ def api_generate(request):
 
     platforms = cleaned.get('platform') or ['windows']
     builds = []
+    failures = []
     for p in platforms:
         single = dict(cleaned)
         single['platform'] = p
-        res = generate_custom_client(single, full_url)
+        try:
+            res = generate_custom_client(single, full_url)
+        except Exception as e:
+            # 派发函数内部未捕获的异常：完整堆栈写进容器日志，对外只给类型+摘要，
+            # 不能让 /api/generate 退化成一页 HTML 500。
+            logger.exception("平台 %s 派发时发生未处理异常", p)
+            failures.append({
+                "platform": p,
+                "platform_label": _platform_label(p),
+                "error": "派发过程发生未处理异常",
+                "detail": "%s: %s" % (type(e).__name__, str(e)[:300]),
+            })
+            continue
         if res.get('success'):
             res['status_url'] = f"/api/status?uuid={res['uuid']}&platform={res['platform']}&filename={res['filename']}"
             res['platform_label'] = _platform_label(res['platform'])
             builds.append(res)
+        else:
+            # 不再丢掉 generate_custom_client 返回的 error / detail：
+            # 容器日志和 JSON 响应都要留下可排查的原因。
+            failure = {
+                "platform": p,
+                "platform_label": _platform_label(p),
+                "error": str(res.get('error') or '未知错误'),
+                "detail": str(res.get('detail') or ''),
+            }
+            logger.error("平台 %s 构建派发失败：%s", p, _failure_reason(failure))
+            failures.append(failure)
 
     if not builds:
-        return JsonResponse({"success": False, "error": "所有平台构建均失败"}, status=500)
+        config_problems = [m for _, m in _config_problems()]
+        reasons = [
+            "%s：%s" % (f['platform_label'], _failure_reason(f))
+            for f in failures[:5]
+        ]
+        message = "所有平台构建均失败，请检查配置后重试。"
+        if reasons:
+            message += " 原因：" + "；".join(reasons)
+        if config_problems:
+            message += " 另：" + "；".join(config_problems)
+        return JsonResponse({
+            "success": False,
+            # 保留原有汇总文案，避免老调用方按字符串判断时失效；细节在下面三个字段。
+            "error": "所有平台构建均失败",
+            "message": message,
+            "failures": failures,
+            "config_problems": config_problems,
+        }, status=500, json_dumps_params={"ensure_ascii": False})
     # 记录批次，便于通过 /builds/<id> 回看（与 web 表单一致）
     import datetime
     batch_id = _new_batch_id()
@@ -206,8 +269,16 @@ def api_generate(request):
     if len(builds) == 1:
         r = dict(builds[0])
         r['batch_url'] = f'/builds/{batch_id}'
-        return JsonResponse(r)
-    return JsonResponse({"success": True, "multi": True, "batch_url": f'/builds/{batch_id}', "builds": builds})
+        # 部分平台失败时显式报出，不能因为有一个成功就静默忽略其余失败。
+        if failures:
+            r['partial'] = True
+            r['failures'] = failures
+        return JsonResponse(r, json_dumps_params={"ensure_ascii": False})
+    result = {"success": True, "multi": True, "batch_url": f'/builds/{batch_id}', "builds": builds}
+    if failures:
+        result['partial'] = True
+        result['failures'] = failures
+    return JsonResponse(result, json_dumps_params={"ensure_ascii": False})
 
 
 def api_status(request):
