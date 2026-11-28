@@ -21,3 +21,7 @@ db.sqlite3
 exe/
 png/
 temp_zips/
+
+# 安卓固定签名私钥：绝不进镜像，容器通过只读卷挂载（只保留目录说明）
+android_signing/*
+!android_signing/README.md

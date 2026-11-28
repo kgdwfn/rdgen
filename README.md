@@ -3,6 +3,8 @@
 The client generator is currently hosted [here](https://rdgen.crayoneater.org).
 If you would like to host the generator yourself, see [here](setup.md)
 
+本仓库（`kgdwfn/rdgen`，上游定制版）的中文部署与配置指南见 [setup.md](setup.md)：包含全部环境变量的作用与配置方法、安卓固定签名自动同步、产物目录说明和故障速查表。
+
 ## rustdesk api server integration
 
 The rdgen client generator is integrated into my fork of the [rustdesk-api](https://github.com/bryangerlach/rustdesk-api). This is currently a work in progress, and might have bugs.

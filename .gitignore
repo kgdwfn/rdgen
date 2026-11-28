@@ -2,8 +2,12 @@
 db.sqlite3
 gunicorn.conf
 .venv
-# 真实凭据（GitHub 令牌等），只放本地、绝不提交
+# 本地私有变量文件：本 fork 不用它做配置，仅防止误把本地私有文件提交上去
 .env
 # 构建/运行产生的产物，不进版本库
 *.zip
 *.png
+
+# 安卓固定签名密钥：只保留目录说明，真实密钥文件绝不入库（公开仓库）
+/android_signing/*
+!/android_signing/README.md

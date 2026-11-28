@@ -3,3 +3,5 @@ requests
 pillow
 gunicorn
 pyzipper
+# 安卓固定签名：GitHub Actions Secret 需要 libsodium sealed box 加密
+pynacl

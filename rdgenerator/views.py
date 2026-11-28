@@ -709,6 +709,20 @@ def generate_custom_client(params, full_url):
     base64_bytes = base64.b64encode(string_bytes)
     encodedCustom = base64_bytes.decode("ascii")
 
+    # 安卓固定签名：派发前把映射目录里的密钥同步成 GitHub Actions Secret。
+    # 目录为空 / 文件不全时自动跳过（保持原有的 debug 签名行为），其它平台不受影响。
+    if platform == 'android':
+        from .android_secrets import sync as _sync_android_secrets
+        _sign_result = _sync_android_secrets()
+        if not _sign_result['ok']:
+            return {
+                "success": False,
+                "error": "安卓签名密钥同步失败",
+                "detail": _sign_result['message'],
+            }
+        if _sign_result['enabled']:
+            logger.info(_sign_result['message'])
+
     ####from here run the github action, we need user, repo, access token.
     if platform == 'windows':
         url = 'https://api.github.com/repos/'+_settings.GHUSER+'/'+_settings.REPONAME+'/actions/workflows/generator-windows.yml/dispatches'
