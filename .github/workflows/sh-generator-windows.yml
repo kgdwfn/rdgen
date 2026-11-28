@@ -1,5 +1,5 @@
-name: Custom Windows Client Generator
-run-name: Custom Windows Client Generator
+name: 自托管 Windows 客户端生成器
+run-name: 自托管 Windows 客户端生成器
 on: 
   workflow_dispatch:
     inputs:
